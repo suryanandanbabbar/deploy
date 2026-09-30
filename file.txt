@@ -2,9 +2,24 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-echo "=== OUTPUT ==="
-find deployment/awa_package_py311_data -maxdepth 5 -type f -printf '%p\n' | sort
+VENV=/tmp/nuitka311
 
-echo
-echo "=== SIZES ==="
-du -ah deployment/awa_package_py311_data | sort -h | tail -30
+cp backend/awa/expressions/grammar.lark /tmp/awa-clean-test/grammar.lark
+
+cd /tmp/awa-clean-test
+
+PYTHONPATH=/tmp/awa-clean-test \
+"$VENV/bin/python" -c "
+from pathlib import Path
+import awa.expressions.parser as p
+
+print('PARSER FILE:', p.__file__)
+
+root = Path(p.__file__).resolve().parents[2]
+grammar = root / 'grammar.lark'
+
+print('ROOT:', root)
+print('GRAMMAR:', grammar)
+print('EXISTS:', grammar.exists())
+print('SIZE:', grammar.stat().st_size if grammar.exists() else 'N/A')
+"
