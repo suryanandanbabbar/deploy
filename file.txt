@@ -1,0 +1,361 @@
+%sh
+set -euo pipefail
+
+# ============================================================
+# ALTERYX - FULL SOURCE PROTECTION BUILD
+# Python 3.11 / Nuitka
+#
+# Compiles:
+#   backend/
+#   backend/awa/**
+#   backend/app/**
+#
+# Preserves the original Python package hierarchy.
+# Produces .so files instead of proprietary .py files.
+# ============================================================
+
+PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
+VENV="/tmp/nuitka311"
+
+cd "$PROJECT"
+
+BUILD_ROOT="$PROJECT/deployment/module_build_py311"
+FINAL_ROOT="$PROJECT/deployment/final-databricks-app"
+
+echo "============================================================"
+echo " ALTERYX PROTECTED BUILD"
+echo "============================================================"
+echo "Project : $PROJECT"
+echo "Python  : $VENV/bin/python"
+echo "============================================================"
+
+# ------------------------------------------------------------
+# 1. Verify build environment
+# ------------------------------------------------------------
+
+if [ ! -x "$VENV/bin/python" ]; then
+    echo "ERROR: Python 3.11 venv not found: $VENV"
+    exit 1
+fi
+
+"$VENV/bin/python" --version
+"$VENV/bin/python" -m nuitka --version
+
+# ------------------------------------------------------------
+# 2. Clean previous automated build
+# ------------------------------------------------------------
+
+rm -rf "$BUILD_ROOT"
+rm -rf "$FINAL_ROOT"
+
+mkdir -p "$BUILD_ROOT"
+mkdir -p "$FINAL_ROOT"
+
+# ------------------------------------------------------------
+# 3. Build function
+#
+# Compiles ONE Python module at a time, but the script handles
+# the entire tree automatically.
+#
+# Example:
+#
+# backend/awa/parser/format_handler.py
+#
+# becomes:
+#
+# backend/awa/parser/
+#   format_handler.cpython-311-x86_64-linux-gnu.so
+# ------------------------------------------------------------
+
+compile_module() {
+
+    SRC="$1"
+
+    # Relative path from project root
+    REL="${SRC#$PROJECT/}"
+
+    # Remove .py
+    REL_NO_EXT="${REL%.py}"
+
+    # Destination directory
+    DEST_DIR="$FINAL_ROOT/$(dirname "$REL")"
+
+    mkdir -p "$DEST_DIR"
+
+    # Temporary build directory for this module
+    MODULE_NAME="$(basename "$SRC" .py)"
+
+    TMP_DIR="$BUILD_ROOT/tmp_${MODULE_NAME}_$$"
+
+    rm -rf "$TMP_DIR"
+    mkdir -p "$TMP_DIR"
+
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "Compiling: $REL"
+    echo "------------------------------------------------------------"
+
+    (
+        cd "$PROJECT"
+
+        "$VENV/bin/python" -m nuitka \
+            --mode=module \
+            --output-dir="$TMP_DIR" \
+            --remove-output \
+            "$SRC"
+    )
+
+    # Find generated CPython extension
+    SO_FILE="$(find "$TMP_DIR" -maxdepth 1 -type f \
+        -name "${MODULE_NAME}.cpython-311-*.so" \
+        -print -quit)"
+
+    if [ -z "$SO_FILE" ]; then
+        echo ""
+        echo "ERROR: Nuitka did not produce expected module:"
+        echo "$REL"
+        echo ""
+        echo "Contents of temporary build:"
+        find "$TMP_DIR" -maxdepth 2 -type f -print
+        exit 1
+    fi
+
+    cp "$SO_FILE" "$DEST_DIR/"
+
+    echo "Created:"
+    echo "  $DEST_DIR/$(basename "$SO_FILE")"
+
+    rm -rf "$TMP_DIR"
+}
+
+# ------------------------------------------------------------
+# 4. Compile backend package marker
+# ------------------------------------------------------------
+
+if [ -f "$PROJECT/backend/__init__.py" ]; then
+    compile_module "$PROJECT/backend/__init__.py"
+fi
+
+# ------------------------------------------------------------
+# 5. Compile EVERYTHING under backend/awa
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " COMPILING AWA"
+echo "============================================================"
+
+AWA_COUNT=0
+
+while IFS= read -r -d '' SRC; do
+    compile_module "$SRC"
+    AWA_COUNT=$((AWA_COUNT + 1))
+done < <(
+    find "$PROJECT/backend/awa" \
+        -type f \
+        -name "*.py" \
+        ! -path "*/__pycache__/*" \
+        ! -path "*/tests/*" \
+        -print0 | sort -z
+)
+
+echo ""
+echo "AWA modules compiled: $AWA_COUNT"
+
+# ------------------------------------------------------------
+# 6. Compile EVERYTHING under backend/app
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " COMPILING FASTAPI APPLICATION"
+echo "============================================================"
+
+APP_COUNT=0
+
+while IFS= read -r -d '' SRC; do
+    compile_module "$SRC"
+    APP_COUNT=$((APP_COUNT + 1))
+done < <(
+    find "$PROJECT/backend/app" \
+        -type f \
+        -name "*.py" \
+        ! -path "*/__pycache__/*" \
+        ! -path "*/tests/*" \
+        -print0 | sort -z
+)
+
+echo ""
+echo "Application modules compiled: $APP_COUNT"
+
+# ------------------------------------------------------------
+# 7. Copy runtime resources
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " COPYING RUNTIME RESOURCES"
+echo "============================================================"
+
+# AWA grammar
+if [ -f "$PROJECT/backend/awa/expressions/grammar.lark" ]; then
+    mkdir -p "$FINAL_ROOT/backend/awa/expressions"
+    cp "$PROJECT/backend/awa/expressions/grammar.lark" \
+       "$FINAL_ROOT/backend/awa/expressions/"
+fi
+
+# LLM cache
+if [ -f "$PROJECT/backend/artifacts/llm_cache/llm_cache.json" ]; then
+    mkdir -p "$FINAL_ROOT/backend/artifacts/llm_cache"
+    cp "$PROJECT/backend/artifacts/llm_cache/llm_cache.json" \
+       "$FINAL_ROOT/backend/artifacts/llm_cache/"
+fi
+
+# ------------------------------------------------------------
+# 8. Copy frontend
+# ------------------------------------------------------------
+
+echo "Copying frontend..."
+
+if [ -d "$PROJECT/frontend/dist" ]; then
+    mkdir -p "$FINAL_ROOT/frontend"
+    cp -R "$PROJECT/frontend/dist" "$FINAL_ROOT/frontend/"
+else
+    echo "ERROR: frontend/dist not found."
+    exit 1
+fi
+
+# ------------------------------------------------------------
+# 9. Copy documentation
+# ------------------------------------------------------------
+
+if [ -d "$PROJECT/docs" ]; then
+    mkdir -p "$FINAL_ROOT/docs"
+    cp -R "$PROJECT/docs/." "$FINAL_ROOT/docs/"
+fi
+
+# ------------------------------------------------------------
+# 10. Production requirements
+# ------------------------------------------------------------
+
+cp "$PROJECT/backend/requirements.txt" \
+   "$FINAL_ROOT/requirements.txt"
+
+# ------------------------------------------------------------
+# 11. Databricks app.yaml
+# ------------------------------------------------------------
+
+cat > "$FINAL_ROOT/app.yaml" <<'EOF'
+command:
+  - "/bin/bash"
+  - "./start.sh"
+EOF
+
+# ------------------------------------------------------------
+# 12. Databricks startup script
+#
+# IMPORTANT:
+# PYTHONPATH includes the FINAL ROOT so:
+#
+#   backend.app.main
+#   awa.parser.format_handler
+#
+# resolve using the preserved package hierarchy.
+# ------------------------------------------------------------
+
+cat > "$FINAL_ROOT/start.sh" <<'EOF'
+#!/usr/bin/env bash
+set -e
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+export PYTHONPATH="$ROOT"
+
+HOST="0.0.0.0"
+PORT="${DATABRICKS_APP_PORT:-8000}"
+
+echo "========================================"
+echo " STARTING PROTECTED ALTERYX APPLICATION"
+echo " HOST: ${HOST}"
+echo " PORT: ${PORT}"
+echo "========================================"
+
+python -c "import uvicorn; print('Uvicorn:', uvicorn.__version__)"
+
+exec python -m uvicorn \
+    backend.app.main:app \
+    --host "${HOST}" \
+    --port "${PORT}"
+EOF
+
+chmod +x "$FINAL_ROOT/start.sh"
+
+# ------------------------------------------------------------
+# 13. Remove accidental Python source
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " SOURCE-CODE CHECK"
+echo "============================================================"
+
+PY_COUNT="$(find "$FINAL_ROOT" -type f -name "*.py" | wc -l | tr -d ' ')"
+
+echo "Python source files in final artifact: $PY_COUNT"
+
+if [ "$PY_COUNT" -ne 0 ]; then
+    echo ""
+    echo "ERROR: Python source files still exist:"
+    find "$FINAL_ROOT" -type f -name "*.py" -print
+    exit 1
+fi
+
+# ------------------------------------------------------------
+# 14. Check Databricks 10 MB file limit
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " FILE SIZE CHECK"
+echo "============================================================"
+
+LARGE_FILES="$(find "$FINAL_ROOT" -type f -size +10M -print)"
+
+if [ -n "$LARGE_FILES" ]; then
+    echo ""
+    echo "ERROR: Files larger than 10 MB detected:"
+    echo "$LARGE_FILES"
+    echo ""
+    find "$FINAL_ROOT" -type f -size +10M -exec ls -lh {} \;
+    exit 1
+fi
+
+echo "All files are below 10 MB."
+
+# ------------------------------------------------------------
+# 15. Final artifact inventory
+# ------------------------------------------------------------
+
+echo ""
+echo "============================================================"
+echo " FINAL ARTIFACT"
+echo "============================================================"
+
+find "$FINAL_ROOT" -type f -printf '%p\t%k KB\n' | sort
+
+echo ""
+echo "============================================================"
+echo " BUILD SUMMARY"
+echo "============================================================"
+
+echo "AWA modules      : $AWA_COUNT"
+echo "APP modules      : $APP_COUNT"
+echo "Python source    : $PY_COUNT"
+echo "10MB violations  : 0"
+echo ""
+echo "FINAL ARTIFACT:"
+echo "$FINAL_ROOT"
+echo ""
+echo "============================================================"
+echo " BUILD COMPLETE"
+echo "============================================================"
