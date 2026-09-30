@@ -7,11 +7,14 @@ VENV="/tmp/nuitka311"
 
 cd "$FINAL_ROOT"
 
-export PYTHONPATH="$FINAL_ROOT"
+export PYTHONPATH="$FINAL_ROOT:$FINAL_ROOT/backend"
 
 echo "============================================================"
-echo " SOURCE-FREE IMPORT TEST"
+echo "SOURCE-FREE IMPORT TEST"
 echo "============================================================"
+echo "PYTHONPATH:"
+echo "$PYTHONPATH"
+echo ""
 
 "$VENV/bin/python" -c "
 import backend.app.main
@@ -22,6 +25,10 @@ import backend.app.config
 print('SUCCESS: backend.app.config')
 print('CONFIG:', backend.app.config.__file__)
 
+import awa
+print('SUCCESS: awa')
+print('AWA:', awa.__file__)
+
 import awa.parser.format_handler
 print('SUCCESS: awa.parser.format_handler')
 print('FORMAT:', awa.parser.format_handler.__file__)
@@ -31,5 +38,7 @@ print('SUCCESS: awa.analysis')
 print('ANALYSIS:', awa.analysis.__file__)
 
 print('')
+print('========================================')
 print('ALL CORE IMPORTS PASSED')
+print('========================================')
 "
