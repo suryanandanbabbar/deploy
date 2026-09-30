@@ -2,6 +2,21 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-find deployment/app_package_py311 -maxdepth 2 -type f -printf '%p\n'
+rm -rf /tmp/protected-app-test
+mkdir -p /tmp/protected-app-test
 
-du -h deployment/app_package_py311/*
+cp deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
+   /tmp/protected-app-test/
+
+cp deployment/awa_package_py311_final/awa.cpython-311-x86_64-linux-gnu.so \
+   /tmp/protected-app-test/
+
+cp backend/awa/expressions/grammar.lark \
+   /tmp/protected-app-test/
+
+echo "=== PROTECTED ARTIFACT ==="
+find /tmp/protected-app-test -maxdepth 1 -type f -printf '%f\n' | sort
+
+echo
+echo "=== SIZES ==="
+du -h /tmp/protected-app-test/*
