@@ -1,22 +1,21 @@
 %sh
 
-cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
+cd /tmp/protected-app-test
 
-rm -rf /tmp/protected-app-test
-mkdir -p /tmp/protected-app-test
+VENV=/tmp/nuitka311
 
-cp deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-   /tmp/protected-app-test/
+PYTHONPATH=/tmp/protected-app-test \
+"$VENV/bin/python" -c "
+import app
+import awa
 
-cp deployment/awa_package_py311_final/awa.cpython-311-x86_64-linux-gnu.so \
-   /tmp/protected-app-test/
+print('=== COMPILED APPLICATION TEST ===')
+print('APP ORIGIN:', app.__spec__.origin)
+print('APP FILE:', app.__file__)
+print('AWA ORIGIN:', awa.__spec__.origin)
+print('AWA FILE:', awa.__file__)
 
-cp backend/awa/expressions/grammar.lark \
-   /tmp/protected-app-test/
-
-echo "=== PROTECTED ARTIFACT ==="
-find /tmp/protected-app-test -maxdepth 1 -type f -printf '%f\n' | sort
-
-echo
-echo "=== SIZES ==="
-du -h /tmp/protected-app-test/*
+print()
+print('APP IMPORT: PASS')
+print('AWA IMPORT: PASS')
+"
