@@ -2,6 +2,40 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-find deployment/awa_package_py311_final -maxdepth 2 -type f -printf '%p\n'
+rm -rf /tmp/awa-protected-test
+mkdir -p /tmp/awa-protected-test
 
-du -h deployment/awa_package_py311_final/*
+cp deployment/awa_package_py311_final/awa.cpython-311-x86_64-linux-gnu.so \
+   /tmp/awa-protected-test/
+
+cp backend/awa/expressions/grammar.lark \
+   /tmp/awa-protected-test/
+
+VENV=/tmp/nuitka311
+
+cd /tmp/awa-protected-test
+
+PYTHONPATH=/tmp/awa-protected-test \
+"$VENV/bin/python" -c "
+from pathlib import Path
+import awa
+import awa.expressions.parser as p
+
+print('=== PROTECTED AWA TEST ===')
+print('AWA ORIGIN:', awa.__spec__.origin)
+print('PARSER FILE:', p.__file__)
+
+grammar = Path(p.__file__).resolve().parents[2] / 'grammar.lark'
+
+print('GRAMMAR:', grammar)
+print('GRAMMAR EXISTS:', grammar.exists())
+print('GRAMMAR SIZE:', grammar.stat().st_size)
+
+print()
+print('=== PARSER OBJECT ===')
+print('PARSER:', p._parser)
+
+print()
+print('=== RESULT ===')
+print('PROTECTED AWA RUNTIME: PASS')
+"
