@@ -1,30 +1,7 @@
 %sh
 
-cd /tmp/awa-protected-test
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-VENV=/tmp/nuitka311
+find deployment/app_package_py311 -maxdepth 2 -type f -printf '%p\n'
 
-PYTHONPATH=/tmp/awa-protected-test \
-"$VENV/bin/python" -c "
-from pathlib import Path
-from awa.expressions.parser import parse_expression
-
-print('=== PROTECTED AWA PARSE TEST ===')
-
-grammar = Path('grammar.lark')
-print('GRAMMAR EXISTS:', grammar.exists())
-print('GRAMMAR SIZE:', grammar.stat().st_size)
-
-expression = '[Revenue] > 100'
-print('EXPRESSION:', expression)
-
-tree = parse_expression(expression)
-
-print('PARSE RESULT TYPE:', type(tree))
-print('PARSE RESULT:')
-print(tree.pretty())
-
-print()
-print('=== RESULT ===')
-print('PROTECTED AWA PARSE: PASS')
-"
+du -h deployment/app_package_py311/*
