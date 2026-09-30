@@ -1,4 +1,5 @@
 %sh
+
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
 rm -rf /tmp/awa-package-test
@@ -12,11 +13,12 @@ mkdir -p /tmp/awa-package-test/awa/expressions
 cp backend/awa/expressions/grammar.lark \
    /tmp/awa-package-test/awa/expressions/
 
+VENV=/tmp/nuitka311
+
 cd /tmp/awa-package-test
 
 PYTHONPATH=/tmp/awa-package-test \
-/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/bin/python3.11 \
--c "
+"$VENV/bin/python" -c "
 import awa
 import awa.expressions.parser as p
 from pathlib import Path
@@ -24,7 +26,10 @@ from pathlib import Path
 print('AWA:', awa)
 print('AWA FILE:', awa.__file__)
 print('PARSER FILE:', p.__file__)
-print('GRAMMAR EXPECTED:', Path(p.__file__).parent / 'grammar.lark')
-print('GRAMMAR EXISTS:', (Path(p.__file__).parent / 'grammar.lark').exists())
-print('GRAMMAR SIZE:', (Path(p.__file__).parent / 'grammar.lark').stat().st_size if (Path(p.__file__).parent / 'grammar.lark').exists() else 'N/A')
+
+grammar = Path(p.__file__).parent / 'grammar.lark'
+
+print('GRAMMAR EXPECTED:', grammar)
+print('GRAMMAR EXISTS:', grammar.exists())
+print('GRAMMAR SIZE:', grammar.stat().st_size if grammar.exists() else 'N/A')
 "
