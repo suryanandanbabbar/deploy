@@ -2,40 +2,19 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-rm -rf /tmp/awa-protected-test
-mkdir -p /tmp/awa-protected-test
+echo "=== PARSER API ==="
 
-cp deployment/awa_package_py311_final/awa.cpython-311-x86_64-linux-gnu.so \
-   /tmp/awa-protected-test/
+grep -nE \
+"^(def |class )|_parser|parse\(" \
+backend/awa/expressions/parser.py
 
-cp backend/awa/expressions/grammar.lark \
-   /tmp/awa-protected-test/
 
-VENV=/tmp/nuitka311
+%sh
 
-cd /tmp/awa-protected-test
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-PYTHONPATH=/tmp/awa-protected-test \
-"$VENV/bin/python" -c "
-from pathlib import Path
-import awa
-import awa.expressions.parser as p
+echo
+echo "=== PARSER SOURCE (first 120 lines) ==="
 
-print('=== PROTECTED AWA TEST ===')
-print('AWA ORIGIN:', awa.__spec__.origin)
-print('PARSER FILE:', p.__file__)
+sed -n '1,120p' backend/awa/expressions/parser.py
 
-grammar = Path(p.__file__).resolve().parents[2] / 'grammar.lark'
-
-print('GRAMMAR:', grammar)
-print('GRAMMAR EXISTS:', grammar.exists())
-print('GRAMMAR SIZE:', grammar.stat().st_size)
-
-print()
-print('=== PARSER OBJECT ===')
-print('PARSER:', p._parser)
-
-print()
-print('=== RESULT ===')
-print('PROTECTED AWA RUNTIME: PASS')
-"
