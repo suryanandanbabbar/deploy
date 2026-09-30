@@ -2,36 +2,15 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
+rm -rf deployment/awa_package_py311_data
+
 VENV=/tmp/nuitka311
 
-cd /tmp/awa-clean-test
-
-PYTHONPATH=/tmp/awa-clean-test \
-"$VENV/bin/python" -c "
-from pathlib import Path
-import awa
-
-print('=== COMPILED AWA ===')
-print('AWA ORIGIN:', awa.__spec__.origin)
-print('AWA FILE:', awa.__file__)
-print('AWA PATH:', getattr(awa, '__path__', None))
-
-print()
-print('=== IMPORT PARSER ===')
-
-try:
-    import awa.expressions.parser as p
-
-    print('PARSER IMPORT: SUCCESS')
-    print('PARSER:', p)
-    print('PARSER FILE:', p.__file__)
-
-    grammar = Path(p.__file__).parent / 'grammar.lark'
-
-    print('GRAMMAR EXPECTED:', grammar)
-    print('GRAMMAR EXISTS:', grammar.exists())
-
-except Exception as e:
-    print('PARSER IMPORT: FAILED')
-    print(type(e).__name__ + ':', e)
-"
+PYTHONPATH=backend \
+"$VENV/bin/python" -m nuitka \
+    --mode=package \
+    --include-package=awa \
+    --include-package-data=awa \
+    backend/awa \
+    --output-dir=deployment/awa_package_py311_data \
+    --remove-output
