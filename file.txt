@@ -1,588 +1,96 @@
 %sh
-set -euo pipefail
-
-# ============================================================
-# ALTERYX - PROTECTED PYTHON BUILD
-# ============================================================
-#
-# Target:
-#   Python 3.11
-#   Linux x86_64
-#   Nuitka
-#   Databricks Apps
-#
-# Strategy:
-#   - Compile every normal Python module to .so
-#   - Preserve original package hierarchy
-#   - Do NOT compile __init__.py with --mode=module
-#   - Generate minimal package __init__.py markers
-#   - Copy required runtime resources
-#   - Copy React production build
-#   - Validate source/file-size constraints
-#
-# ============================================================
-
-set -euo pipefail
+set -e
 
 PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
-VENV="/tmp/nuitka311"
-
 FINAL_ROOT="$PROJECT/deployment/final-databricks-app"
-BUILD_ROOT="$PROJECT/deployment/module_build_py311"
 
 cd "$PROJECT"
 
-echo ""
-echo "============================================================"
-echo " ALTERYX PROTECTED BUILD"
-echo "============================================================"
-echo "Project : $PROJECT"
-echo "Python  : $VENV/bin/python"
-echo "Output  : $FINAL_ROOT"
-echo "============================================================"
-echo ""
-
-# ============================================================
-# 1. Validate Python / Nuitka
-# ============================================================
-
-if [ ! -x "$VENV/bin/python" ]; then
-    echo "ERROR: Python 3.11 environment not found:"
-    echo "$VENV/bin/python"
-    exit 1
-fi
-
-echo "Python:"
-"$VENV/bin/python" --version
-
-echo ""
-echo "Nuitka:"
-"$VENV/bin/python" -m nuitka --version
-
-# ============================================================
-# 2. Clean previous generated artifact
-# ============================================================
-
-echo ""
-echo "Cleaning previous protected build..."
-
-rm -rf "$FINAL_ROOT"
-rm -rf "$BUILD_ROOT"
-
-mkdir -p "$FINAL_ROOT"
-mkdir -p "$BUILD_ROOT"
-
-# ============================================================
-# 3. Compile one NORMAL Python module
-#
-# IMPORTANT:
-# __init__.py is deliberately excluded.
-# Nuitka --mode=module cannot compile __init__.py directly.
-# ============================================================
-
-compile_module() {
-
-    SRC="$1"
-
-    REL="${SRC#$PROJECT/}"
-    REL_NO_EXT="${REL%.py}"
-
-    MODULE_NAME="$(basename "$SRC" .py)"
-    REL_DIR="$(dirname "$REL")"
-
-    DEST_DIR="$FINAL_ROOT/$REL_DIR"
-
-    mkdir -p "$DEST_DIR"
-
-    TMP_DIR="$BUILD_ROOT/${MODULE_NAME}_$$"
-
-    rm -rf "$TMP_DIR"
-    mkdir -p "$TMP_DIR"
-
-    echo ""
-    echo "------------------------------------------------------------"
-    echo "Compiling"
-    echo "  Source : $REL"
-    echo "  Module : $MODULE_NAME"
-    echo "------------------------------------------------------------"
-
-    (
-        cd "$PROJECT"
-
-        "$VENV/bin/python" -m nuitka \
-            --mode=module \
-            --output-dir="$TMP_DIR" \
-            --remove-output \
-            "$SRC"
-    )
-
-    SO_FILE="$(find "$TMP_DIR" \
-        -maxdepth 1 \
-        -type f \
-        -name "${MODULE_NAME}.cpython-311-*.so" \
-        -print -quit)"
-
-    if [ -z "$SO_FILE" ]; then
-
-        echo ""
-        echo "============================================================"
-        echo "ERROR: Nuitka did not produce the expected .so"
-        echo "============================================================"
-        echo "Source:"
-        echo "$REL"
-        echo ""
-        echo "Generated files:"
-        find "$TMP_DIR" -maxdepth 2 -type f -print
-        exit 1
-    fi
-
-    cp "$SO_FILE" "$DEST_DIR/"
-
-    echo "Created:"
-    echo "  $DEST_DIR/$(basename "$SO_FILE")"
-
-    rm -rf "$TMP_DIR"
-}
-
-# ============================================================
-# 4. Create package marker
-#
-# Python requires __init__.py for the package hierarchy.
-#
-# These are generated package markers, NOT the original source.
-# ============================================================
-
-create_package_marker() {
-
-    PACKAGE_DIR="$1"
-
-    mkdir -p "$PACKAGE_DIR"
-
-    cat > "$PACKAGE_DIR/__init__.py" <<'EOF'
-# Protected package marker.
-EOF
-}
-
-# ============================================================
-# 5. Recreate package hierarchy
-#
-# We generate markers for every Python package directory.
-# ============================================================
-
-echo ""
-echo "============================================================"
-echo "CREATING PACKAGE HIERARCHY"
-echo "============================================================"
-
-create_package_marker "$FINAL_ROOT/backend"
-create_package_marker "$FINAL_ROOT/backend/awa"
-create_package_marker "$FINAL_ROOT/backend/app"
-
-# All directories containing __init__.py under AWA
-while IFS= read -r -d '' INIT_FILE; do
-
-    REL="${INIT_FILE#$PROJECT/}"
-    PACKAGE_DIR="$(dirname "$REL")"
-
-    create_package_marker "$FINAL_ROOT/$PACKAGE_DIR"
-
-done < <(
-    find "$PROJECT/backend/awa" \
-        -type f \
-        -name "__init__.py" \
-        -print0
-)
-
-# All directories containing __init__.py under backend/app
-while IFS= read -r -d '' INIT_FILE; do
-
-    REL="${INIT_FILE#$PROJECT/}"
-    PACKAGE_DIR="$(dirname "$REL")"
-
-    create_package_marker "$FINAL_ROOT/$PACKAGE_DIR"
-
-done < <(
-    find "$PROJECT/backend/app" \
-        -type f \
-        -name "__init__.py" \
-        -print0
-)
-
-# ============================================================
-# 6. Compile backend/awa
-# ============================================================
-
-echo ""
-echo "============================================================"
-echo "COMPILING AWA"
-echo "============================================================"
-
-AWA_COUNT=0
-
-while IFS= read -r -d '' SRC; do
-
-    compile_module "$SRC"
-
-    AWA_COUNT=$((AWA_COUNT + 1))
-
-done < <(
-    find "$PROJECT/backend/awa" \
-        -type f \
-        -name "*.py" \
-        ! -name "__init__.py" \
-        ! -path "*/__pycache__/*" \
-        ! -path "*/tests/*" \
-        -print0 | sort -z
-)
-
-echo ""
-echo "AWA modules compiled: $AWA_COUNT"
-
-# ============================================================
-# 7. Compile backend/app
-# ============================================================
-
-echo ""
-echo "============================================================"
-echo "COMPILING FASTAPI APPLICATION"
-echo "============================================================"
-
-APP_COUNT=0
-
-while IFS= read -r -d '' SRC; do
-
-    compile_module "$SRC"
-
-    APP_COUNT=$((APP_COUNT + 1))
-
-done < <(
-    find "$PROJECT/backend/app" \
-        -type f \
-        -name "*.py" \
-        ! -name "__init__.py" \
-        ! -path "*/__pycache__/*" \
-        ! -path "*/tests/*" \
-        -print0 | sort -z
-)
-
-echo ""
-echo "Application modules compiled: $APP_COUNT"
-
-# ============================================================
-# 8. Compile backend/__init__.py if needed?
-#
-# It is only a package marker. We intentionally use the
-# generated protected marker created above.
-# ============================================================
-
-# ============================================================
-# 9. Copy runtime resources
-# ============================================================
-
-echo ""
-echo "============================================================"
-echo "COPYING RUNTIME RESOURCES"
-echo "============================================================"
-
-# ------------------------------------------------------------
-# grammar.lark
-# ------------------------------------------------------------
-
-if [ -f "$PROJECT/backend/awa/expressions/grammar.lark" ]; then
-
-    mkdir -p "$FINAL_ROOT/backend/awa/expressions"
-
-    cp \
-        "$PROJECT/backend/awa/expressions/grammar.lark" \
-        "$FINAL_ROOT/backend/awa/expressions/grammar.lark"
-
-    echo "Copied grammar.lark"
-
-else
-
-    echo "WARNING: grammar.lark not found."
-
-fi
-
-# ------------------------------------------------------------
-# llm_cache.json
-# ------------------------------------------------------------
-
-if [ -f "$PROJECT/backend/artifacts/llm_cache/llm_cache.json" ]; then
-
-    mkdir -p "$FINAL_ROOT/backend/artifacts/llm_cache"
-
-    cp \
-        "$PROJECT/backend/artifacts/llm_cache/llm_cache.json" \
-        "$FINAL_ROOT/backend/artifacts/llm_cache/llm_cache.json"
-
-    echo "Copied llm_cache.json"
-
-else
-
-    echo "WARNING: llm_cache.json not found."
-
-fi
-
-# ============================================================
-# 10. Copy frontend production build
-# ============================================================
-
-echo ""
-echo "============================================================"
-echo "COPYING FRONTEND"
-echo "============================================================"
-
-if [ ! -d "$PROJECT/frontend/dist" ]; then
-    echo "ERROR: frontend/dist does not exist."
-    exit 1
-fi
-
-mkdir -p "$FINAL_ROOT/frontend"
-
-cp -R \
-    "$PROJECT/frontend/dist" \
-    "$FINAL_ROOT/frontend/"
-
-echo "Frontend copied."
-
-# ============================================================
-# 11. Copy docs
-# ============================================================
-
-if [ -d "$PROJECT/docs" ]; then
-
-    mkdir -p "$FINAL_ROOT/docs"
-
-    cp -R \
-        "$PROJECT/docs/." \
-        "$FINAL_ROOT/docs/"
-
-    echo "Documentation copied."
-
-fi
-
-# ============================================================
-# 12. Copy requirements.txt
-# ============================================================
-
-if [ -f "$PROJECT/backend/requirements.txt" ]; then
-
-    cp \
-        "$PROJECT/backend/requirements.txt" \
-        "$FINAL_ROOT/requirements.txt"
-
-else
-
-    echo "ERROR: backend/requirements.txt not found."
-    exit 1
-
-fi
-
-# ============================================================
-# 13. Create app.yaml
-# ============================================================
-
-cat > "$FINAL_ROOT/app.yaml" <<'EOF'
-command:
-  - "/bin/bash"
-  - "./start.sh"
-EOF
-
-# ============================================================
-# 14. Create start.sh
-# ============================================================
-
-cat > "$FINAL_ROOT/start.sh" <<'EOF'
-#!/usr/bin/env bash
-
-set -e
-
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-
-export PYTHONPATH="$ROOT"
-
-HOST="0.0.0.0"
-PORT="${DATABRICKS_APP_PORT:-8000}"
-
-echo "========================================"
-echo " STARTING PROTECTED ALTERYX APPLICATION"
-echo "========================================"
-echo "ROOT : ${ROOT}"
-echo "HOST : ${HOST}"
-echo "PORT : ${PORT}"
-echo "========================================"
-
-python -c "import uvicorn; print('Uvicorn:', uvicorn.__version__)"
-
-exec python -m uvicorn \
-    backend.app.main:app \
-    --host "${HOST}" \
-    --port "${PORT}"
-EOF
-
-chmod +x "$FINAL_ROOT/start.sh"
-
-# ============================================================
-# 15. Verify package structure
-# ============================================================
-
-echo ""
 echo "============================================================"
 echo "PACKAGE STRUCTURE"
 echo "============================================================"
 
-find "$FINAL_ROOT/backend" \
-    -type f \
-    | sort
-
-# ============================================================
-# 16. Verify no original proprietary Python source
-#
-# The only .py files allowed are generated package markers
-# and start.sh is shell, not Python.
-# ============================================================
+find "$FINAL_ROOT/backend" -type f -print | sort
 
 echo ""
 echo "============================================================"
 echo "PYTHON SOURCE CHECK"
 echo "============================================================"
 
-PY_FILES="$(find "$FINAL_ROOT" -type f -name "*.py" | sort)"
-
-echo "$PY_FILES"
-
-PY_COUNT="$(find "$FINAL_ROOT" -type f -name "*.py" | wc -l | tr -d ' ')"
+echo "All Python files:"
+find "$FINAL_ROOT" -type f -name "*.py" -print | sort
 
 echo ""
-echo "Python files present: $PY_COUNT"
+echo "Non-package Python files:"
 
-# Check whether any .py exists outside package __init__.py
-BAD_PY="$(find "$FINAL_ROOT" \
+BAD_PY=$(find "$FINAL_ROOT" \
     -type f \
     -name "*.py" \
     ! -name "__init__.py" \
-    -print)"
+    -print)
 
 if [ -n "$BAD_PY" ]; then
-
-    echo ""
-    echo "ERROR: Non-package Python source files detected:"
     echo "$BAD_PY"
+    echo ""
+    echo "ERROR: Non-package Python source detected."
     exit 1
-
 fi
 
-echo "No proprietary Python module source files detected."
-
-# ============================================================
-# 17. Check for Python cache/source artifacts
-# ============================================================
+echo "NONE"
 
 echo ""
 echo "============================================================"
-echo "CACHE / SOURCE ARTIFACT CHECK"
+echo "BYTECODE / CACHE CHECK"
 echo "============================================================"
 
-CACHE_FILES="$(find "$FINAL_ROOT" \
-    \( -name "*.pyc" -o -name "*.pyo" \) \
-    -print)"
-
-if [ -n "$CACHE_FILES" ]; then
-
-    echo "ERROR: Python bytecode files detected:"
-    echo "$CACHE_FILES"
+if find "$FINAL_ROOT" -type f \( -name "*.pyc" -o -name "*.pyo" \) -print | grep -q .; then
+    echo "ERROR: Python bytecode found."
+    find "$FINAL_ROOT" -type f \( -name "*.pyc" -o -name "*.pyo" \) -print
     exit 1
-
 fi
 
-if find "$FINAL_ROOT" -type d -name "__pycache__" | grep -q .; then
-
-    echo "ERROR: __pycache__ detected."
-    find "$FINAL_ROOT" -type d -name "__pycache__"
+if find "$FINAL_ROOT" -type d -name "__pycache__" -print | grep -q .; then
+    echo "ERROR: __pycache__ found."
+    find "$FINAL_ROOT" -type d -name "__pycache__" -print
     exit 1
-
 fi
 
-echo "No .pyc/.pyo/__pycache__ artifacts."
-
-# ============================================================
-# 18. Databricks 10 MB file-size validation
-# ============================================================
+echo "PASS"
 
 echo ""
 echo "============================================================"
-echo "10 MB FILE LIMIT CHECK"
+echo "10 MB FILE CHECK"
 echo "============================================================"
 
-LARGE_FILES="$(find "$FINAL_ROOT" -type f -size +10M -print)"
+LARGE=$(find "$FINAL_ROOT" -type f -size +10M -print)
 
-if [ -n "$LARGE_FILES" ]; then
-
-    echo ""
-    echo "ERROR: Files >= 10 MB detected:"
-    echo "$LARGE_FILES"
-
-    echo ""
-    echo "Sizes:"
-    find "$FINAL_ROOT" \
-        -type f \
-        -size +10M \
-        -exec ls -lh {} \;
-
+if [ -n "$LARGE" ]; then
+    echo "ERROR: Files >= 10 MB:"
+    echo "$LARGE"
+    find "$FINAL_ROOT" -type f -size +10M -exec ls -lh {} \;
     exit 1
 fi
 
-echo "PASS: Every file is below 10 MB."
-
-# ============================================================
-# 19. Check compiled modules
-# ============================================================
+echo "PASS: All files are below 10 MB."
 
 echo ""
 echo "============================================================"
 echo "COMPILED MODULE COUNT"
 echo "============================================================"
 
-SO_COUNT="$(find "$FINAL_ROOT" \
+SO_COUNT=$(find "$FINAL_ROOT" \
     -type f \
     -name "*.cpython-311-*.so" \
-    | wc -l \
-    | tr -d ' ')"
+    -print | wc -l | tr -d ' ')
 
 echo "Compiled .so files: $SO_COUNT"
 
-# ============================================================
-# 20. Final inventory
-# ============================================================
-
 echo ""
 echo "============================================================"
-echo "FINAL ARTIFACT INVENTORY"
+echo "FINAL ARTIFACT"
 echo "============================================================"
 
-find "$FINAL_ROOT" \
-    -type f \
-    -exec ls -lh {} \;
-
-# ============================================================
-# 21. Summary
-# ============================================================
+du -sh "$FINAL_ROOT"
 
 echo ""
-echo ""
-echo "============================================================"
-echo " BUILD COMPLETE"
-echo "============================================================"
-echo ""
-echo "AWA modules compiled : $AWA_COUNT"
-echo "APP modules compiled : $APP_COUNT"
-echo "Compiled .so files   : $SO_COUNT"
-echo "Python source        : NONE (except package markers)"
-echo "Python bytecode      : NONE"
-echo "Files >= 10 MB       : NONE"
-echo ""
-echo "FINAL ARTIFACT:"
-echo "$FINAL_ROOT"
-echo ""
-echo "============================================================"
+echo "BUILD ARTIFACT READY FOR RUNTIME TEST"
