@@ -1,8 +1,30 @@
 %sh
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-grep -RniE \
-  "grammar\.lark|grammar_path|Lark\(" \
-  backend/awa/expressions \
-  backend/awa/parser \
-  --include="*.py"
+rm -rf /tmp/awa-package-test
+mkdir -p /tmp/awa-package-test
+
+cp deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
+   /tmp/awa-package-test/
+
+mkdir -p /tmp/awa-package-test/awa/expressions
+
+cp backend/awa/expressions/grammar.lark \
+   /tmp/awa-package-test/awa/expressions/
+
+cd /tmp/awa-package-test
+
+PYTHONPATH=/tmp/awa-package-test \
+/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/bin/python3.11 \
+-c "
+import awa
+import awa.expressions.parser as p
+from pathlib import Path
+
+print('AWA:', awa)
+print('AWA FILE:', awa.__file__)
+print('PARSER FILE:', p.__file__)
+print('GRAMMAR EXPECTED:', Path(p.__file__).parent / 'grammar.lark')
+print('GRAMMAR EXISTS:', (Path(p.__file__).parent / 'grammar.lark').exists())
+print('GRAMMAR SIZE:', (Path(p.__file__).parent / 'grammar.lark').stat().st_size if (Path(p.__file__).parent / 'grammar.lark').exists() else 'N/A')
+"
