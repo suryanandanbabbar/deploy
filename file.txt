@@ -2,43 +2,36 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-rm -rf /tmp/awa-clean-test
-mkdir -p /tmp/awa-clean-test
-
-cp deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-   /tmp/awa-clean-test/
-
-echo "=== CLEAN DIRECTORY ==="
-find /tmp/awa-clean-test -maxdepth 3 -print
-
-echo
-echo "=== PYTHON IMPORT RESOLUTION ==="
-
 VENV=/tmp/nuitka311
 
 cd /tmp/awa-clean-test
 
 PYTHONPATH=/tmp/awa-clean-test \
 "$VENV/bin/python" -c "
-import sys
-import importlib.util
-
-print('PYTHON:', sys.executable)
-print('PATH:')
-for p in sys.path:
-    print('  ', p)
-
-spec = importlib.util.find_spec('awa')
-
-print()
-print('AWA SPEC:', spec)
-print('AWA ORIGIN:', spec.origin)
-print('AWA LOCATIONS:', spec.submodule_search_locations)
-
+from pathlib import Path
 import awa
 
-print()
-print('AWA:', awa)
+print('=== COMPILED AWA ===')
+print('AWA ORIGIN:', awa.__spec__.origin)
 print('AWA FILE:', awa.__file__)
 print('AWA PATH:', getattr(awa, '__path__', None))
+
+print()
+print('=== IMPORT PARSER ===')
+
+try:
+    import awa.expressions.parser as p
+
+    print('PARSER IMPORT: SUCCESS')
+    print('PARSER:', p)
+    print('PARSER FILE:', p.__file__)
+
+    grammar = Path(p.__file__).parent / 'grammar.lark'
+
+    print('GRAMMAR EXPECTED:', grammar)
+    print('GRAMMAR EXISTS:', grammar.exists())
+
+except Exception as e:
+    print('PARSER IMPORT: FAILED')
+    print(type(e).__name__ + ':', e)
 "
