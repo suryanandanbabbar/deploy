@@ -2,14 +2,6 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-rm -rf deployment/awa_package_py311_final
+find deployment/awa_package_py311_final -maxdepth 2 -type f -printf '%p\n'
 
-VENV=/tmp/nuitka311
-
-PYTHONPATH=backend \
-"$VENV/bin/python" -m nuitka \
-    --mode=package \
-    --include-package=awa \
-    backend/awa \
-    --output-dir=deployment/awa_package_py311_final \
-    --remove-output
+du -h deployment/awa_package_py311_final/*
