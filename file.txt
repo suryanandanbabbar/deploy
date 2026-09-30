@@ -1,46 +1,31 @@
 %sh
 
-cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
-
-rm -rf /tmp/protected-app-test/backend
-mkdir -p /tmp/protected-app-test/backend
-
-cp deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-   /tmp/protected-app-test/backend/
-
-cp deployment/awa_package_py311_final/awa.cpython-311-x86_64-linux-gnu.so \
-   /tmp/protected-app-test/
-
-cp backend/awa/expressions/grammar.lark \
-   /tmp/protected-app-test/
-
-printf '%s\n' '"""Protected backend namespace."""' \
-   > /tmp/protected-app-test/backend/__init__.py
-
-echo "=== PROTECTED ARTIFACT ==="
-find /tmp/protected-app-test -type f -printf '%p\n' | sort
-
-
-%sh
-
 cd /tmp/protected-app-test
 
 VENV=/tmp/nuitka311
 
 PYTHONPATH=/tmp/protected-app-test \
-"$VENV/bin/python" -c "
-import backend.app
+"$VENV/bin/python" -m uvicorn backend.app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    > /tmp/protected-uvicorn.log 2>&1 &
 
-print('=== BACKEND.APP TEST ===')
-print('BACKEND.APP ORIGIN:', backend.app.__spec__.origin)
-print('BACKEND.APP FILE:', backend.app.__file__)
+SERVER_PID=$!
 
-from backend.app.main import app
+sleep 5
 
-print('FASTAPI APP:', app)
-print('ROUTE COUNT:', len(app.routes))
+echo "=== SERVER LOG ==="
+cat /tmp/protected-uvicorn.log
 
-print()
-print('BACKEND.APP IMPORT: PASS')
-print('FASTAPI APPLICATION IMPORT: PASS')
-"
+echo
+echo "=== API CONFIG ==="
+curl -i http://127.0.0.1:8000/api/config
+
+STATUS=$?
+
+echo
+echo "=== STOPPING SERVER ==="
+kill $SERVER_PID 2>/dev/null || true
+wait $SERVER_PID 2>/dev/null || true
+
+exit $STATUS
