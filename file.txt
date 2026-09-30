@@ -3,94 +3,33 @@ set -e
 
 PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
 FINAL_ROOT="$PROJECT/deployment/final-databricks-app"
+VENV="/tmp/nuitka311"
 
-cd "$PROJECT"
+cd "$FINAL_ROOT"
+
+export PYTHONPATH="$FINAL_ROOT"
 
 echo "============================================================"
-echo "PACKAGE STRUCTURE"
+echo " SOURCE-FREE IMPORT TEST"
 echo "============================================================"
 
-find "$FINAL_ROOT/backend" -type f -print | sort
+"$VENV/bin/python" -c "
+import backend.app.main
+print('SUCCESS: backend.app.main')
+print('MAIN:', backend.app.main.__file__)
 
-echo ""
-echo "============================================================"
-echo "PYTHON SOURCE CHECK"
-echo "============================================================"
+import backend.app.config
+print('SUCCESS: backend.app.config')
+print('CONFIG:', backend.app.config.__file__)
 
-echo "All Python files:"
-find "$FINAL_ROOT" -type f -name "*.py" -print | sort
+import awa.parser.format_handler
+print('SUCCESS: awa.parser.format_handler')
+print('FORMAT:', awa.parser.format_handler.__file__)
 
-echo ""
-echo "Non-package Python files:"
+import awa.analysis
+print('SUCCESS: awa.analysis')
+print('ANALYSIS:', awa.analysis.__file__)
 
-BAD_PY=$(find "$FINAL_ROOT" \
-    -type f \
-    -name "*.py" \
-    ! -name "__init__.py" \
-    -print)
-
-if [ -n "$BAD_PY" ]; then
-    echo "$BAD_PY"
-    echo ""
-    echo "ERROR: Non-package Python source detected."
-    exit 1
-fi
-
-echo "NONE"
-
-echo ""
-echo "============================================================"
-echo "BYTECODE / CACHE CHECK"
-echo "============================================================"
-
-if find "$FINAL_ROOT" -type f \( -name "*.pyc" -o -name "*.pyo" \) -print | grep -q .; then
-    echo "ERROR: Python bytecode found."
-    find "$FINAL_ROOT" -type f \( -name "*.pyc" -o -name "*.pyo" \) -print
-    exit 1
-fi
-
-if find "$FINAL_ROOT" -type d -name "__pycache__" -print | grep -q .; then
-    echo "ERROR: __pycache__ found."
-    find "$FINAL_ROOT" -type d -name "__pycache__" -print
-    exit 1
-fi
-
-echo "PASS"
-
-echo ""
-echo "============================================================"
-echo "10 MB FILE CHECK"
-echo "============================================================"
-
-LARGE=$(find "$FINAL_ROOT" -type f -size +10M -print)
-
-if [ -n "$LARGE" ]; then
-    echo "ERROR: Files >= 10 MB:"
-    echo "$LARGE"
-    find "$FINAL_ROOT" -type f -size +10M -exec ls -lh {} \;
-    exit 1
-fi
-
-echo "PASS: All files are below 10 MB."
-
-echo ""
-echo "============================================================"
-echo "COMPILED MODULE COUNT"
-echo "============================================================"
-
-SO_COUNT=$(find "$FINAL_ROOT" \
-    -type f \
-    -name "*.cpython-311-*.so" \
-    -print | wc -l | tr -d ' ')
-
-echo "Compiled .so files: $SO_COUNT"
-
-echo ""
-echo "============================================================"
-echo "FINAL ARTIFACT"
-echo "============================================================"
-
-du -sh "$FINAL_ROOT"
-
-echo ""
-echo "BUILD ARTIFACT READY FOR RUNTIME TEST"
+print('')
+print('ALL CORE IMPORTS PASSED')
+"
