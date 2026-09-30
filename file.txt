@@ -6,16 +6,22 @@ VENV=/tmp/nuitka311
 
 PYTHONPATH=/tmp/protected-app-test \
 "$VENV/bin/python" -c "
-import app
-import awa
+print('=== FASTAPI APPLICATION TEST ===')
 
-print('=== COMPILED APPLICATION TEST ===')
-print('APP ORIGIN:', app.__spec__.origin)
-print('APP FILE:', app.__file__)
-print('AWA ORIGIN:', awa.__spec__.origin)
-print('AWA FILE:', awa.__file__)
+from app.main import app
+
+print('FASTAPI APP:', app)
+print('APP TYPE:', type(app))
+print('ROUTE COUNT:', len(app.routes))
 
 print()
-print('APP IMPORT: PASS')
-print('AWA IMPORT: PASS')
+print('ROUTES:')
+for route in app.routes:
+    path = getattr(route, 'path', None)
+    methods = getattr(route, 'methods', None)
+    if path:
+        print(' ', methods, path)
+
+print()
+print('FASTAPI APPLICATION IMPORT: PASS')
 "
