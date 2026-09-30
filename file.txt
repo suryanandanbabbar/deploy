@@ -1,44 +1,18 @@
 %sh
-set -e
-
-PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
-FINAL_ROOT="$PROJECT/deployment/final-databricks-app"
-VENV="/tmp/nuitka311"
-
-cd "$FINAL_ROOT"
-
-export PYTHONPATH="$FINAL_ROOT:$FINAL_ROOT/backend"
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
 echo "============================================================"
-echo "SOURCE-FREE IMPORT TEST"
+echo "FUNCTIONAL __init__.py FILES"
 echo "============================================================"
-echo "PYTHONPATH:"
-echo "$PYTHONPATH"
-echo ""
 
-"$VENV/bin/python" -c "
-import backend.app.main
-print('SUCCESS: backend.app.main')
-print('MAIN:', backend.app.main.__file__)
-
-import backend.app.config
-print('SUCCESS: backend.app.config')
-print('CONFIG:', backend.app.config.__file__)
-
-import awa
-print('SUCCESS: awa')
-print('AWA:', awa.__file__)
-
-import awa.parser.format_handler
-print('SUCCESS: awa.parser.format_handler')
-print('FORMAT:', awa.parser.format_handler.__file__)
-
-import awa.analysis
-print('SUCCESS: awa.analysis')
-print('ANALYSIS:', awa.analysis.__file__)
-
-print('')
-print('========================================')
-print('ALL CORE IMPORTS PASSED')
-print('========================================')
-"
+find backend/awa backend/app \
+    -type f \
+    -name "__init__.py" \
+    -print0 |
+while IFS= read -r -d '' f; do
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "$f"
+    echo "------------------------------------------------------------"
+    sed -n '1,120p' "$f"
+done
