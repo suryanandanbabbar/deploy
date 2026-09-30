@@ -6,22 +6,18 @@ VENV=/tmp/nuitka311
 
 PYTHONPATH=/tmp/protected-app-test \
 "$VENV/bin/python" -c "
-print('=== FASTAPI APPLICATION TEST ===')
+import backend.app
 
-from app.main import app
+print('=== BACKEND.APP TEST ===')
+print('BACKEND.APP ORIGIN:', backend.app.__spec__.origin)
+print('BACKEND.APP FILE:', backend.app.__file__)
+
+from backend.app.main import app
 
 print('FASTAPI APP:', app)
-print('APP TYPE:', type(app))
 print('ROUTE COUNT:', len(app.routes))
 
 print()
-print('ROUTES:')
-for route in app.routes:
-    path = getattr(route, 'path', None)
-    methods = getattr(route, 'methods', None)
-    if path:
-        print(' ', methods, path)
-
-print()
+print('BACKEND.APP IMPORT: PASS')
 print('FASTAPI APPLICATION IMPORT: PASS')
 "
