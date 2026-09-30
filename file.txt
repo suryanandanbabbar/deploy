@@ -1,31 +1,28 @@
 %sh
 
-cd /tmp/protected-app-test
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-VENV=/tmp/nuitka311
+echo "=== FRONTEND / STATIC FILE CONFIGURATION ==="
 
-PYTHONPATH=/tmp/protected-app-test \
-"$VENV/bin/python" -m uvicorn backend.app.main:app \
-    --host 127.0.0.1 \
-    --port 8000 \
-    > /tmp/protected-uvicorn.log 2>&1 &
+grep -RniE \
+"StaticFiles|frontend|dist|FileResponse|mount\(" \
+backend/app \
+--include="*.py" \
+| head -100
 
-SERVER_PID=$!
 
-sleep 5
 
-echo "=== SERVER LOG ==="
-cat /tmp/protected-uvicorn.log
+%sh
 
-echo
-echo "=== API CONFIG ==="
-curl -i http://127.0.0.1:8000/api/config
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-STATUS=$?
+echo "=== FRONTEND DIST ==="
 
-echo
-echo "=== STOPPING SERVER ==="
-kill $SERVER_PID 2>/dev/null || true
-wait $SERVER_PID 2>/dev/null || true
-
-exit $STATUS
+if [ -d frontend/dist ]; then
+    echo "frontend/dist: EXISTS"
+    find frontend/dist -maxdepth 2 -type f -printf '%p\n' | head -50
+    echo
+    du -sh frontend/dist
+else
+    echo "frontend/dist: NOT FOUND"
+fi
