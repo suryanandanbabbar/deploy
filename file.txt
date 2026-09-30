@@ -2,15 +2,9 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-rm -rf deployment/awa_package_py311_data
+echo "=== OUTPUT ==="
+find deployment/awa_package_py311_data -maxdepth 5 -type f -printf '%p\n' | sort
 
-VENV=/tmp/nuitka311
-
-PYTHONPATH=backend \
-"$VENV/bin/python" -m nuitka \
-    --mode=package \
-    --include-package=awa \
-    --include-package-data=awa \
-    backend/awa \
-    --output-dir=deployment/awa_package_py311_data \
-    --remove-output
+echo
+echo "=== SIZES ==="
+du -ah deployment/awa_package_py311_data | sort -h | tail -30
