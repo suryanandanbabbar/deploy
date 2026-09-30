@@ -2,4 +2,51 @@
 
 cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
 
-sed -n '10,30p' backend/awa/expressions/parser.py
+python - <<'PY'
+from pathlib import Path
+
+path = Path("backend/awa/expressions/parser.py")
+text = path.read_text()
+
+old = '''_GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
+_parser: Lark | None = None
+'''
+
+new = '''_GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
+
+# Protected/Nuitka runtime: grammar.lark is shipped at application root.
+if not _GRAMMAR_PATH.exists():
+    _GRAMMAR_PATH = Path(__file__).resolve().parents[2] / "grammar.lark"
+
+_parser: Lark | None = None
+'''
+
+if old not in text:
+    raise SystemExit("Expected parser block was not found. No changes made.")
+
+path.write_text(text.replace(old, new, 1))
+print("Updated:", path)
+PY
+
+
+%sh
+
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
+
+sed -n '10,35p' backend/awa/expressions/parser.py
+
+%sh
+
+cd /Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test
+
+rm -rf deployment/awa_package_py311_final
+
+VENV=/tmp/nuitka311
+
+PYTHONPATH=backend \
+"$VENV/bin/python" -m nuitka \
+    --mode=package \
+    --include-package=awa \
+    backend/awa \
+    --output-dir=deployment/awa_package_py311_final \
+    --remove-output
