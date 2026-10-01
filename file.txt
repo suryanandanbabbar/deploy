@@ -1,220 +1,37 @@
-%sh
-
-set -e
-
-PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
-FINAL="$PROJECT/deployment/final-databricks-app"
-
-cd "$PROJECT"
-
-echo "========================================"
-echo " BUILDING FINAL DATABRICKS APP"
-echo "========================================"
-
-rm -rf "$FINAL"
-
-mkdir -p \
-    "$FINAL/backend" \
-    "$FINAL/artifacts" \
-    "$FINAL/frontend" \
-    "$FINAL/docs"
-
-# --------------------------------------------------
-# 1. Protected backend
-# --------------------------------------------------
-
-cp deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-   "$FINAL/backend/"
-
-# Namespace marker only — contains no application logic.
-printf '%s\n' '"""Protected backend namespace."""' \
-   > "$FINAL/backend/__init__.py"
-
-# --------------------------------------------------
-# 2. Protected AWA
-# --------------------------------------------------
-
-cp deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-   "$FINAL/"
-
-# Required parser grammar.
-cp backend/awa/expressions/grammar.lark \
-   "$FINAL/"
-
-# --------------------------------------------------
-# 3. Runtime artifacts
-# --------------------------------------------------
-
-if [ -d backend/artifacts ]; then
-    cp -R backend/artifacts/. "$FINAL/artifacts/"
-fi
-
-# --------------------------------------------------
-# 4. React production build
-# --------------------------------------------------
-
-cp -R frontend/dist "$FINAL/frontend/"
-
-# --------------------------------------------------
-# 5. Documentation required at runtime/distribution
-# --------------------------------------------------
-
-if [ -f docs/tool-support-matrix.md ]; then
-    cp docs/tool-support-matrix.md "$FINAL/docs/"
-fi
-
-# --------------------------------------------------
-# 6. Python dependencies
-# --------------------------------------------------
-
-cat > "$FINAL/requirements.txt" <<'EOF'
-fastapi>=0.100.0
-uvicorn[standard]>=0.20.0
-pydantic>=2.0.0
-python-multipart>=0.0.6
-python-dotenv>=1.0.0
-networkx>=3.0
-lark>=1.1.0
-click>=8.0
-python-docx>=1.0.0
-pillow>=10.0
-openpyxl>=3.0
-pandas>=2.0
-numpy>=1.24
-EOF
-
-# --------------------------------------------------
-# 7. Databricks Apps startup configuration
-# --------------------------------------------------
-
-cat > "$FINAL/app.yaml" <<'EOF'
 command:
   - "/bin/bash"
   - "./start.sh"
-EOF
 
-# --------------------------------------------------
-# 8. Startup script
-# --------------------------------------------------
+env:
+  - name: AZURE_DEPLOYMENT
+    value: "Llama-4-Maverick-17B-128E-Instruct-FP8"
 
-cat > "$FINAL/start.sh" <<'EOF'
-#!/usr/bin/env bash
-set -e
+  - name: AZURE_ENDPOINT
+    value: "https://llama--resource.services.ai.azure.com/openai/v1"
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT"
+  - name: AZURE_DEPLOYMENT_NAME
+    value: "Llama-4-Maverick-17B-128E-Instruct-FP8"
 
-export PYTHONPATH="$ROOT:$ROOT/backend"
+  - name: AZURE_OPENAI_API_VERSION
+    value: "2024-02-15-preview"
 
-HOST="0.0.0.0"
-PORT="${DATABRICKS_APP_PORT:-8000}"
+  - name: AWA_LLM_TEMPERATURE
+    value: "0.0"
 
-echo "========================================"
-echo " STARTING PROTECTED AWA APPLICATION"
-echo "========================================"
-echo "ROOT: $ROOT"
-echo "HOST: $HOST"
-echo "PORT: $PORT"
-echo "========================================"
+  - name: AWA_LLM_TIMEOUT
+    value: "30.0"
 
-exec python -m uvicorn backend.app.main:app \
-    --host "$HOST" \
-    --port "$PORT"
-EOF
+  - name: AWA_LLM_BUSINESS_REPORT_TIMEOUT_SECONDS
+    value: "60.0"
 
-chmod +x "$FINAL/start.sh"
+  - name: AWA_LLM_RETRY_ATTEMPTS
+    value: "2"
 
-echo
-echo "========================================"
-echo " FINAL ARTIFACT CREATED"
-echo "========================================"
+  - name: AWA_LLM_MAX_TOKENS
+    value: "500"
 
-find "$FINAL" -type f -printf '%p\n' | sort
+  - name: AWA_LLM_ENABLED
+    value: "true"
 
-
---------
-
-
-%sh
-
-PROJECT="/Workspace/Users/in_suryanandanb@exlservice.com/Alteryx-nuitka-test"
-FINAL="$PROJECT/deployment/final-databricks-app"
-
-cd "$PROJECT"
-
-echo "========================================"
-echo " FILE AUDIT"
-echo "========================================"
-
-echo
-echo "=== ALL FILES ==="
-find "$FINAL" -type f -printf '%p\n' | sort
-
-echo
-echo "=== PYTHON SOURCE FILES ==="
-
-PY_FILES=$(find "$FINAL" -type f \
-    \( -name "*.py" -o -name "*.pyc" \) \
-    ! -path "$FINAL/backend/__init__.py" \
-    -print)
-
-if [ -n "$PY_FILES" ]; then
-    echo "ERROR: PROPRIETARY PYTHON FILES FOUND"
-    echo "$PY_FILES"
-    exit 1
-else
-    echo "PASS: No proprietary .py/.pyc files"
-fi
-
-echo
-echo "=== PYTHON CACHE ==="
-
-CACHE=$(find "$FINAL" -type d -name "__pycache__" -print)
-
-if [ -n "$CACHE" ]; then
-    echo "ERROR: __pycache__ FOUND"
-    echo "$CACHE"
-    exit 1
-else
-    echo "PASS: No __pycache__"
-fi
-
-echo
-echo "=== ENVIRONMENT FILES ==="
-
-ENV_FILES=$(find "$FINAL" -type f \
-    \( -name ".env" -o -name ".env.*" \) \
-    -print)
-
-if [ -n "$ENV_FILES" ]; then
-    echo "ERROR: ENV FILE FOUND"
-    echo "$ENV_FILES"
-    exit 1
-else
-    echo "PASS: No .env files"
-fi
-
-echo
-echo "=== FILE SIZE AUDIT ==="
-
-find "$FINAL" -type f -printf '%s %p\n' \
-    | sort -nr \
-    | head -30
-
-echo
-echo "=== FILES >= 10 MB ==="
-
-LARGE=$(find "$FINAL" -type f -size +10M -print)
-
-if [ -n "$LARGE" ]; then
-    echo "ERROR: FILE(S) EXCEED DATABRICKS 10 MB LIMIT"
-    echo "$LARGE"
-    exit 1
-else
-    echo "PASS: No file exceeds 10 MB"
-fi
-
-echo
-echo "========================================"
-echo " SECURITY / SIZE AUDIT: PASS"
-echo "========================================"
+  - name: AZURE_LLAMAKEY
+    valueFrom: <YOUR_SECRET_RESOURCE_KEY>
