@@ -17,7 +17,7 @@ env:
 
   - name: AWA_LLM_TEMPERATURE
     value: "0.0"
-
+MC4CAQAwBQYDK2VwBCIEIDU2DF+VT4sArtsK1YcrAA6i6/CpfWBgCqAC1Yi5LJAQ
   - name: AWA_LLM_TIMEOUT
     value: "30.0"
 
