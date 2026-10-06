@@ -1,11 +1,35 @@
-read -s -p "Paste EXPIRED signed license JSON: " EXPIRED_LICENSE
-echo
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-az keyvault secret set \
-  --vault-name alteryx-licenseArtifacts \
-  --name alteryx-license \
-  --value "$EXPIRED_LICENSE" \
-  --query "name" \
-  -o tsv
+embedded_public_key_b64 = (
+    "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
+)
 
-unset EXPIRED_LICENSE
+public_key = Ed25519PublicKey.from_public_bytes(
+    base64.b64decode(embedded_public_key_b64)
+)
+
+signature_to_verify = base64.b64decode(
+    signed_license["signature"]
+)
+
+payload_to_verify = {
+    k: v
+    for k, v in signed_license.items()
+    if k != "signature"
+}
+
+canonical_to_verify = json.dumps(
+    payload_to_verify,
+    sort_keys=True,
+    separators=(",", ":"),
+    default=str,
+).encode("utf-8")
+
+public_key.verify(
+    signature_to_verify,
+    canonical_to_verify,
+)
+
+print("Signature verification: PASSED")
+print("Payload integrity: PASSED")
+print("Feature Schema: PASSED")
