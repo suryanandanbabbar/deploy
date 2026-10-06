@@ -1,1 +1,5 @@
-python -c "from azure.identity import DefaultAzureCredential; from azure.keyvault.secrets import SecretClient; c=SecretClient(vault_url='https://alteryx-licensing.vault.azure.net/', credential=DefaultAzureCredential()); print([s.name for s in c.list_properties_of_secrets() if s.name == 'alteryx-license-private-key'])"
+az keyvault secret show \
+  --vault-name alteryx-licensing \
+  --name alteryx-license-private-key \
+  --query value \
+  -o tsv | openssl pkey -inform PEM -outform DER | sha256sum
