@@ -1,10 +1,10 @@
-public_key = private_key.public_key()
-
-public_key.verify(
-    base64.b64decode(signed_license["signature"]),
-    canonical_payload,
+license_json = json.dumps(
+    signed_license,
+    separators=(",", ":")
 )
 
-print("New signature verification: PASSED")
-print("Payload integrity: PASSED")
-print("Feature schema: PASSED")
+with open("/tmp/alteryx-license.json", "w") as f:
+    f.write(license_json)
+
+print("Corrected license file created:", True)
+print("License file size:", len(license_json), "bytes")
