@@ -1,8 +1,9 @@
-private_key_pem = dbutils.secrets.get(
-    scope="alteryx-licenseSigning",
-    key="alteryx-license-private-key"
-)
+import base64
 
-print("Private key retrieved:", bool(private_key_pem))
-print("PEM format:", private_key_pem.startswith("-----BEGIN"))
-print("Private key length:", len(private_key_pem))
+try:
+    decoded = base64.b64decode(private_key_pem, validate=True)
+    print("Base64:", True)
+    print("Decoded length:", len(decoded))
+except Exception:
+    print("Base64:", False)
+    print("Decoded length: N/A")
