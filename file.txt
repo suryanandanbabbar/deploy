@@ -1,36 +1,12 @@
-command:
-  - "/bin/bash"
-  - "./start.sh"
+$k = az keyvault secret show `
+  --vault-name alteryx-licensing `
+  --name alteryx-license-private-key `
+  --query value `
+  -o tsv
 
-env:
-  - name: AZURE_DEPLOYMENT
-    value: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+$env:ALTERYX_TEST_PRIVATE_KEY = $k
 
-  - name: AZURE_ENDPOINT
-    value: "https://llama--resource.services.ai.azure.com/openai/v1"
+python -c "import os; from cryptography.hazmat.primitives import serialization; key=serialization.load_pem_private_key(os.environ['ALTERYX_TEST_PRIVATE_KEY'].encode(), password=None); print(type(key).__name__); print(key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption()).hex()[:8] + '...')"
 
-  - name: AZURE_DEPLOYMENT_NAME
-    value: "Llama-4-Maverick-17B-128E-Instruct-FP8"
-
-  - name: AZURE_OPENAI_API_VERSION
-    value: "2024-02-15-preview"
-
-  - name: AWA_LLM_TEMPERATURE
-    value: "0.0"
-  - name: AWA_LLM_TIMEOUT
-    value: "30.0"
-
-  - name: AWA_LLM_BUSINESS_REPORT_TIMEOUT_SECONDS
-    value: "60.0"
-
-  - name: AWA_LLM_RETRY_ATTEMPTS
-    value: "2"
-
-  - name: AWA_LLM_MAX_TOKENS
-    value: "500"
-
-  - name: AWA_LLM_ENABLED
-    value: "true"
-
-  - name: AZURE_LLAMAKEY
-    valueFrom: <YOUR_SECRET_RESOURCE_KEY>
+Remove-Item Env:ALTERYX_TEST_PRIVATE_KEY
+Remove-Variable k
