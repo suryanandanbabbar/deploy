@@ -1,7 +1,25 @@
-license_from_scope = dbutils.secrets.get(
-    scope="alteryx-licenseArtifacts",
-    key="alteryx-license"
-)
+from datetime import datetime, timedelta, timezone
 
-print("License retrieved:", bool(license_from_scope))
-print("License length:", len(license_from_scope))
+issued_at = datetime.now(timezone.utc)
+expires_at = issued_at + timedelta(days=30)
+
+license_payload = {
+    "license_id": "CLIENT-ALTERYX-001",
+    "product": "alteryx-etl",
+    "environment": "production",
+    "issued_at": issued_at.isoformat(),
+    "expires_at": expires_at.isoformat(),
+    "features": {
+        "workflow_analysis": True,
+        "portfolio_rationalisation": True,
+        "python_translation": True,
+        "export_reports": True,
+    },
+}
+
+print("Payload prepared:", True)
+print("Features type:", type(license_payload["features"]).__name__)
+print("Feature count:", len(license_payload["features"]))
+print("License ID:", license_payload["license_id"])
+print("Product:", license_payload["product"])
+print("Environment:", license_payload["environment"])
