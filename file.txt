@@ -1,18 +1,36 @@
 import base64
+import json
+from datetime import datetime, timedelta, timezone
 
-derived_public_key = private_key.public_key().public_bytes(
-    encoding=__import__(
-        "cryptography.hazmat.primitives.serialization",
-        fromlist=["Encoding"]
-    ).Encoding.Raw,
-    format=__import__(
-        "cryptography.hazmat.primitives.serialization",
-        fromlist=["PublicFormat"]
-    ).PublicFormat.Raw,
-)
+# Exact production identity
+license_payload = {
+    "license_id": "CLIENT-ALTERYX-001",
+    "product": "alteryx-etl",
+    "environment": "production",
+    "issued_at": datetime.now(timezone.utc).isoformat(),
+    "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+    "features": ["etl_rationalisation"],
+}
 
-derived_public_key_b64 = base64.b64encode(derived_public_key).decode("ascii")
+# Must match LicenseManager canonicalization exactly
+canonical_payload = json.dumps(
+    license_payload,
+    sort_keys=True,
+    separators=(",", ":"),
+    default=str,
+).encode("utf-8")
 
-EXPECTED_PUBLIC_KEY = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
+signature = private_key.sign(canonical_payload)
+signature_b64 = base64.b64encode(signature).decode("ascii")
 
-print("Public key matches embedded verifier:", derived_public_key_b64 == EXPECTED_PUBLIC_KEY)
+signed_license = {
+    **license_payload,
+    "signature": signature_b64,
+}
+
+print("License signed:", True)
+print("Signature length:", len(signature))
+print("Signature Base64 length:", len(signature_b64))
+print("License ID:", signed_license["license_id"])
+print("Product:", signed_license["product"])
+print("Environment:", signed_license["environment"])
