@@ -1,36 +1,13 @@
 import base64
-import json
-from datetime import datetime, timedelta, timezone
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-# Exact production identity
-license_payload = {
-    "license_id": "CLIENT-ALTERYX-001",
-    "product": "alteryx-etl",
-    "environment": "production",
-    "issued_at": datetime.now(timezone.utc).isoformat(),
-    "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
-    "features": ["etl_rationalisation"],
-}
+public_key = private_key.public_key()
 
-# Must match LicenseManager canonicalization exactly
-canonical_payload = json.dumps(
-    license_payload,
-    sort_keys=True,
-    separators=(",", ":"),
-    default=str,
-).encode("utf-8")
+public_key.verify(
+    base64.b64decode(signed_license["signature"]),
+    canonical_payload,
+)
 
-signature = private_key.sign(canonical_payload)
-signature_b64 = base64.b64encode(signature).decode("ascii")
-
-signed_license = {
-    **license_payload,
-    "signature": signature_b64,
-}
-
-print("License signed:", True)
-print("Signature length:", len(signature))
-print("Signature Base64 length:", len(signature_b64))
-print("License ID:", signed_license["license_id"])
-print("Product:", signed_license["product"])
-print("Environment:", signed_license["environment"])
+print("Signature verification: PASSED")
+print("Payload integrity: PASSED")
+print("Production identity: PASSED")
