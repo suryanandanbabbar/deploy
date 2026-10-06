@@ -1,10 +1,11 @@
-license_json = json.dumps(
-    signed_license,
-    separators=(",", ":")
-)
+read -s -p "Paste corrected signed license JSON: " LICENSE_JSON
+echo
 
-with open("/tmp/alteryx-license.json", "w") as f:
-    f.write(license_json)
+az keyvault secret set \
+  --vault-name alteryx-licenseArtifacts \
+  --name alteryx-license \
+  --value "$LICENSE_JSON" \
+  --query "name" \
+  -o tsv
 
-print("Corrected license file created:", True)
-print("License file size:", len(license_json), "bytes")
+unset LICENSE_JSON
