@@ -1,9 +1,18 @@
-from cryptography.hazmat.primitives.serialization import load_der_private_key
+import base64
 
-private_key = load_der_private_key(
-    decoded,
-    password=None,
+derived_public_key = private_key.public_key().public_bytes(
+    encoding=__import__(
+        "cryptography.hazmat.primitives.serialization",
+        fromlist=["Encoding"]
+    ).Encoding.Raw,
+    format=__import__(
+        "cryptography.hazmat.primitives.serialization",
+        fromlist=["PublicFormat"]
+    ).PublicFormat.Raw,
 )
 
-print("Private key parsed:", True)
-print("Key type:", type(private_key).__name__)
+derived_public_key_b64 = base64.b64encode(derived_public_key).decode("ascii")
+
+EXPECTED_PUBLIC_KEY = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
+
+print("Public key matches embedded verifier:", derived_public_key_b64 == EXPECTED_PUBLIC_KEY)
