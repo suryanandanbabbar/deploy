@@ -1,10 +1,9 @@
-license_json = json.dumps(
-    signed_license,
-    separators=(",", ":")
-)
+with open("/tmp/alteryx-license.json", "r") as f:
+    stored_license = json.load(f)
 
-with open("/tmp/alteryx-license.json", "w") as f:
-    f.write(license_json)
-
-print("License file created:", True)
-print("License file size:", len(license_json), "bytes")
+print("File readable:", True)
+print("JSON valid:", isinstance(stored_license, dict))
+print("License ID matches:", stored_license["license_id"] == "CLIENT-ALTERYX-001")
+print("Product matches:", stored_license["product"] == "alteryx-etl")
+print("Environment matches:", stored_license["environment"] == "production")
+print("Signature present:", bool(stored_license.get("signature")))
