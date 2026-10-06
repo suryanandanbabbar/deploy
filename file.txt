@@ -2,4 +2,4 @@ az keyvault secret show \
   --vault-name alteryx-licensing \
   --name alteryx-license-private-key \
   --query value \
-  -o tsv | openssl pkey -inform PEM -outform DER | shasum -a 256
+  -o tsv | openssl pkey -inform PEM -outform DER | sha256sum
