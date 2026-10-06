@@ -1,14 +1,11 @@
-import json
+VALID_LICENSE="$(az keyvault secret show \
+  --vault-name alteryx-licenseArtifacts \
+  --name alteryx-license \
+  --query value \
+  -o tsv)"
 
-expired_license_json = json.dumps(
-    signed_license,
-    sort_keys=True,
-    separators=(",", ":"),
-)
-
-with open("/tmp/alteryx-license-expired.json", "w") as f:
-    f.write(expired_license_json)
-
-print("Expired license artifact prepared:", True)
-print("Artifact size:", len(expired_license_json), "bytes")
-print("Expires at:", license_payload["expires_at"])
+if [ -n "$VALID_LICENSE" ]; then
+    echo "Current valid license backed up in this Cloud Shell session."
+else
+    echo "ERROR: Could not retrieve current license."
+fi
