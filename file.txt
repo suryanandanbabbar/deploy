@@ -1,25 +1,23 @@
-from datetime import datetime, timedelta, timezone
+import base64
+import json
 
-issued_at = datetime.now(timezone.utc)
-expires_at = issued_at + timedelta(days=30)
+canonical_payload = json.dumps(
+    license_payload,
+    sort_keys=True,
+    separators=(",", ":"),
+    default=str,
+).encode("utf-8")
 
-license_payload = {
-    "license_id": "CLIENT-ALTERYX-001",
-    "product": "alteryx-etl",
-    "environment": "production",
-    "issued_at": issued_at.isoformat(),
-    "expires_at": expires_at.isoformat(),
-    "features": {
-        "workflow_analysis": True,
-        "portfolio_rationalisation": True,
-        "python_translation": True,
-        "export_reports": True,
-    },
+signature = private_key.sign(canonical_payload)
+signature_b64 = base64.b64encode(signature).decode("ascii")
+
+signed_license = {
+    **license_payload,
+    "signature": signature_b64,
 }
 
-print("Payload prepared:", True)
-print("Features type:", type(license_payload["features"]).__name__)
-print("Feature count:", len(license_payload["features"]))
-print("License ID:", license_payload["license_id"])
-print("Product:", license_payload["product"])
-print("Environment:", license_payload["environment"])
+print("License signed:", True)
+print("Signature length:", len(signature))
+print("Signature Base64 length:", len(signature_b64))
+print("Features type:", type(signed_license["features"]).__name__)
+print("Feature count:", len(signed_license["features"]))
