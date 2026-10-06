@@ -1,11 +1,7 @@
-read -s -p "Paste signed license JSON: " LICENSE_JSON
-echo
+license_from_scope = dbutils.secrets.get(
+    scope="alteryx-licenseArtifacts",
+    key="alteryx-license"
+)
 
-az keyvault secret set \
-  --vault-name alteryx-licenseArtifacts \
-  --name alteryx-license \
-  --value "$LICENSE_JSON" \
-  --query "name" \
-  -o tsv
-
-unset LICENSE_JSON
+print("License retrieved:", bool(license_from_scope))
+print("License length:", len(license_from_scope))
