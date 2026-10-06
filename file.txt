@@ -1,9 +1,9 @@
-import base64
+from cryptography.hazmat.primitives.serialization import load_der_private_key
 
-try:
-    decoded = base64.b64decode(private_key_pem, validate=True)
-    print("Base64:", True)
-    print("Decoded length:", len(decoded))
-except Exception:
-    print("Base64:", False)
-    print("Decoded length: N/A")
+private_key = load_der_private_key(
+    decoded,
+    password=None,
+)
+
+print("Private key parsed:", True)
+print("Key type:", type(private_key).__name__)
