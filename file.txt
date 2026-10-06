@@ -1,17 +1,14 @@
-import base64
-from cryptography.hazmat.primitives.serialization import load_der_private_key
+import json
 
-private_key_b64 = dbutils.secrets.get(
-    scope="alteryx-licenseSigning",
-    key="alteryx-license-private-key"
+expired_license_json = json.dumps(
+    signed_license,
+    sort_keys=True,
+    separators=(",", ":"),
 )
 
-private_key_der = base64.b64decode(private_key_b64)
+with open("/tmp/alteryx-license-expired.json", "w") as f:
+    f.write(expired_license_json)
 
-private_key = load_der_private_key(
-    private_key_der,
-    password=None,
-)
-
-print("Private key retrieved:", True)
-print("Key type:", type(private_key).__name__)
+print("Expired license artifact prepared:", True)
+print("Artifact size:", len(expired_license_json), "bytes")
+print("Expires at:", license_payload["expires_at"])
