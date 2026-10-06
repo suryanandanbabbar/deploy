@@ -1,11 +1,11 @@
-VALID_LICENSE="$(az keyvault secret show \
+read -s -p "Paste EXPIRED signed license JSON: " EXPIRED_LICENSE
+echo
+
+az keyvault secret set \
   --vault-name alteryx-licenseArtifacts \
   --name alteryx-license \
-  --query value \
-  -o tsv)"
+  --value "$EXPIRED_LICENSE" \
+  --query "name" \
+  -o tsv
 
-if [ -n "$VALID_LICENSE" ]; then
-    echo "Current valid license backed up in this Cloud Shell session."
-else
-    echo "ERROR: Could not retrieve current license."
-fi
+unset EXPIRED_LICENSE
