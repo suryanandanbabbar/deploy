@@ -1,9 +1,5 @@
-print("License fields:", sorted(signed_license.keys()))
-print("Signature present:", bool(signed_license.get("signature")))
-print("Signature field type:", type(signed_license.get("signature")).__name__)
-print("License ID:", signed_license["license_id"])
-print("Product:", signed_license["product"])
-print("Environment:", signed_license["environment"])
-print("Issued at:", signed_license["issued_at"])
-print("Expires at:", signed_license["expires_at"])
-print("Features type:", type(signed_license["features"]).__name__)
+az keyvault secret show \
+  --vault-name alteryx-licenseArtifacts \
+  --name alteryx-license \
+  --query "id" \
+  -o tsv
