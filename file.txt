@@ -1,9 +1,11 @@
-with open("/tmp/alteryx-license.json", "r") as f:
-    stored_license = json.load(f)
+read -s -p "Paste signed license JSON: " LICENSE_JSON
+echo
 
-print("File readable:", True)
-print("JSON valid:", isinstance(stored_license, dict))
-print("License ID matches:", stored_license["license_id"] == "CLIENT-ALTERYX-001")
-print("Product matches:", stored_license["product"] == "alteryx-etl")
-print("Environment matches:", stored_license["environment"] == "production")
-print("Signature present:", bool(stored_license.get("signature")))
+az keyvault secret set \
+  --vault-name alteryx-licenseArtifacts \
+  --name alteryx-license \
+  --value "$LICENSE_JSON" \
+  --query "name" \
+  -o tsv
+
+unset LICENSE_JSON
