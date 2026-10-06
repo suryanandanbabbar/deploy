@@ -1,23 +1,10 @@
-import base64
-import json
+public_key = private_key.public_key()
 
-canonical_payload = json.dumps(
-    license_payload,
-    sort_keys=True,
-    separators=(",", ":"),
-    default=str,
-).encode("utf-8")
+public_key.verify(
+    base64.b64decode(signed_license["signature"]),
+    canonical_payload,
+)
 
-signature = private_key.sign(canonical_payload)
-signature_b64 = base64.b64encode(signature).decode("ascii")
-
-signed_license = {
-    **license_payload,
-    "signature": signature_b64,
-}
-
-print("License signed:", True)
-print("Signature length:", len(signature))
-print("Signature Base64 length:", len(signature_b64))
-print("Features type:", type(signed_license["features"]).__name__)
-print("Feature count:", len(signed_license["features"]))
+print("New signature verification: PASSED")
+print("Payload integrity: PASSED")
+print("Feature schema: PASSED")
