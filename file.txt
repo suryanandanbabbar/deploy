@@ -1,13 +1,9 @@
-import base64
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-
-public_key = private_key.public_key()
-
-public_key.verify(
-    base64.b64decode(signed_license["signature"]),
-    canonical_payload,
-)
-
-print("Signature verification: PASSED")
-print("Payload integrity: PASSED")
-print("Production identity: PASSED")
+print("License fields:", sorted(signed_license.keys()))
+print("Signature present:", bool(signed_license.get("signature")))
+print("Signature field type:", type(signed_license.get("signature")).__name__)
+print("License ID:", signed_license["license_id"])
+print("Product:", signed_license["product"])
+print("Environment:", signed_license["environment"])
+print("Issued at:", signed_license["issued_at"])
+print("Expires at:", signed_license["expires_at"])
+print("Features type:", type(signed_license["features"]).__name__)
