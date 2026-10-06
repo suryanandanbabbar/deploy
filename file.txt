@@ -1,12 +1,5 @@
-$k = az keyvault secret show `
-  --vault-name alteryx-licensing `
-  --name alteryx-license-private-key `
-  --query value `
-  -o tsv
-
-$env:ALTERYX_TEST_PRIVATE_KEY = $k
-
-python -c "import os; from cryptography.hazmat.primitives import serialization; key=serialization.load_pem_private_key(os.environ['ALTERYX_TEST_PRIVATE_KEY'].encode(), password=None); print(type(key).__name__); print(key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption()).hex()[:8] + '...')"
-
-Remove-Item Env:ALTERYX_TEST_PRIVATE_KEY
-Remove-Variable k
+az keyvault secret show \
+  --vault-name alteryx-licensing \
+  --name alteryx-license-private-key \
+  --query value \
+  -o tsv | openssl pkey -inform PEM -outform DER | shasum -a 256
