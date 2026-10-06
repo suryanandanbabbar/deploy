@@ -1,5 +1,13 @@
-az keyvault secret show \
+PRIVATE_KEY="$(az keyvault secret show \
   --vault-name alteryx-licensing \
   --name alteryx-license-private-key \
   --query value \
-  -o tsv | openssl pkey -inform PEM -outform DER | sha256sum
+  -o tsv)"
+
+if [ -n "$PRIVATE_KEY" ]; then
+    echo "Private key retrieved successfully."
+else
+    echo "Private key retrieval failed."
+fi
+
+unset PRIVATE_KEY
