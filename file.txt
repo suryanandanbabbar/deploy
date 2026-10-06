@@ -1,13 +1,19 @@
-PRIVATE_KEY="$(az keyvault secret show \
-  --vault-name alteryx-licensing \
-  --name alteryx-license-private-key \
-  --query value \
-  -o tsv)"
+import requests
 
-if [ -n "$PRIVATE_KEY" ]; then
-    echo "Private key retrieved successfully."
-else
-    echo "Private key retrieval failed."
-fi
+ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+host = ctx.apiUrl().get()
+token = ctx.apiToken().get()
 
-unset PRIVATE_KEY
+r = requests.get(
+    f"{host}/api/2.0/secrets/scopes/list",
+    headers={"Authorization": f"Bearer {token}"}
+)
+
+print([
+    {
+        "name": s["name"],
+        "backend_type": s.get("backend_type")
+    }
+    for s in r.json()["scopes"]
+    if s["name"] == "alteryx-licenseArtifacts"
+])
