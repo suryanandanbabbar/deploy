@@ -1,35 +1,31 @@
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+%sh
+set -e
 
-embedded_public_key_b64 = (
-    "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
-)
+echo "===== PYTHON ====="
+python3 --version
+which python3
 
-public_key = Ed25519PublicKey.from_public_bytes(
-    base64.b64decode(embedded_public_key_b64)
-)
+echo
+echo "===== PLATFORM ====="
+uname -a
+uname -m
 
-signature_to_verify = base64.b64decode(
-    signed_license["signature"]
-)
+echo
+echo "===== WORKING DIRECTORY ====="
+pwd
 
-payload_to_verify = {
-    k: v
-    for k, v in signed_license.items()
-    if k != "signature"
-}
+echo
+echo "===== DIRECTORY CONTENTS ====="
+ls -la
 
-canonical_to_verify = json.dumps(
-    payload_to_verify,
-    sort_keys=True,
-    separators=(",", ":"),
-    default=str,
-).encode("utf-8")
 
-public_key.verify(
-    signature_to_verify,
-    canonical_to_verify,
-)
+%sh
+set -e
 
-print("Signature verification: PASSED")
-print("Payload integrity: PASSED")
-print("Feature Schema: PASSED")
+echo "Current directory:"
+pwd
+
+echo
+echo "Searching for backend/frontend:"
+find . -maxdepth 3 -type d \( -name backend -o -name frontend \) -print
+
