@@ -1,16 +1,26 @@
 %sh
 set -e
 
-echo "===== CREATING PYTHON 3.11 BUILD ENVIRONMENT ====="
-
-rm -rf /tmp/nuitka311
-
-python3 -m venv /tmp/nuitka311
+echo "===== PYTHON 3.11 AVAILABILITY ====="
 
 echo
-echo "===== PYTHON VERSION ====="
-/tmp/nuitka311/bin/python --version
+echo "--- command -v ---"
+command -v python3.11 || true
 
 echo
-echo "===== PYTHON LOCATION ====="
-which /tmp/nuitka311/bin/python
+echo "--- /usr/bin ---"
+ls -l /usr/bin/python3.11 2>/dev/null || true
+
+echo
+echo "--- /usr/local/bin ---"
+ls -l /usr/local/bin/python3.11 2>/dev/null || true
+
+echo
+echo "--- PATH candidates ---"
+which -a python3.11 2>/dev/null || true
+
+echo
+echo "--- installed Python binaries ---"
+find /usr/bin /usr/local/bin -maxdepth 1 -type f \
+    \( -name 'python3.1*' -o -name 'python3.11*' \) \
+    -print 2>/dev/null | sort
