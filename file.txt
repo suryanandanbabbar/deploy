@@ -1,26 +1,25 @@
 %sh
 set -e
 
-echo "===== PYTHON 3.11 AVAILABILITY ====="
+echo "===== FRESH PYTHON 3.11 VENV ====="
+
+# Use the same isolated location as the trusted build procedure,
+# but recreate it from scratch.
+rm -rf /tmp/nuitka311
 
 echo
-echo "--- command -v ---"
-command -v python3.11 || true
+echo "===== CREATING VENV WITH PYTHON 3.11 ====="
+
+uv venv --python 3.11 /tmp/nuitka311
 
 echo
-echo "--- /usr/bin ---"
-ls -l /usr/bin/python3.11 2>/dev/null || true
+echo "===== VERIFY PYTHON ====="
+/tmp/nuitka311/bin/python --version
 
 echo
-echo "--- /usr/local/bin ---"
-ls -l /usr/local/bin/python3.11 2>/dev/null || true
+echo "===== VERIFY PYTHON PATH ====="
+readlink -f /tmp/nuitka311/bin/python
 
 echo
-echo "--- PATH candidates ---"
-which -a python3.11 2>/dev/null || true
-
-echo
-echo "--- installed Python binaries ---"
-find /usr/bin /usr/local/bin -maxdepth 1 -type f \
-    \( -name 'python3.1*' -o -name 'python3.11*' \) \
-    -print 2>/dev/null | sort
+echo "===== VERIFY ARCHITECTURE ====="
+/tmp/nuitka311/bin/python -c "import platform, sys; print('Python:', sys.version); print('Machine:', platform.machine())"
