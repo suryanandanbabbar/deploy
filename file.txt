@@ -1,47 +1,63 @@
 %sh
 set -e
 
-ROOT="$PWD"
-OUT="$ROOT/deployment/protected_v2"
+VENV="/tmp/nuitka311"
+OUT="$PWD/deployment/protected_v2"
 
-echo "===== FIXING FRONTEND DIST LAYOUT ====="
+echo "=============================================="
+echo " FULL PROTECTED APPLICATION SMOKE TEST"
+echo "=============================================="
 
-echo
-echo "--- REMOVE INCORRECT FRONTEND CONTENT ---"
-
-rm -rf "$OUT/frontend"
-
-echo
-echo "--- CREATE CORRECT DIRECTORY ---"
-
-mkdir -p "$OUT/frontend"
+cd "$OUT"
 
 echo
-echo "--- COPY FRONTEND DIST ---"
+echo "=== 1. IMPORT COMPILED AWA ==="
 
-cp -R \
-  "$ROOT/frontend/dist" \
-  "$OUT/frontend/dist"
-
-echo
-echo "--- VERIFY ---"
-
-find "$OUT/frontend" -type f -printf '%p\n' | sort
+PYTHONPATH="$OUT" \
+"$VENV/bin/python" -c \
+"import backend.awa; print('backend.awa: PASS'); print('AWA:', backend.awa.__file__)"
 
 echo
-echo "--- CHECK REQUIRED PATH ---"
+echo "=== 2. TEST AWA PARSER ==="
 
-if [ ! -d "$OUT/frontend/dist" ]; then
-    echo "ERROR: frontend/dist still missing"
-    exit 1
-fi
+PYTHONPATH="$OUT" \
+"$VENV/bin/python" -c \
+"from backend.awa.expressions.parser import parse_expression; parse_expression('[Revenue] > 100'); print('AWA parser: PASS')"
+
+echo
+echo "=== 3. IMPORT COMPILED FASTAPI ==="
+
+PYTHONPATH="$OUT" \
+"$VENV/bin/python" -c \
+"from backend.app.main import app; print('backend.app.main: PASS'); print('Routes:', len(app.routes))"
+
+echo
+echo "=== 4. VERIFY FRONTEND DISCOVERY ==="
 
 if [ ! -f "$OUT/frontend/dist/index.html" ]; then
-    echo "ERROR: frontend/dist/index.html missing"
+    echo "FAIL: frontend index.html missing"
     exit 1
 fi
 
-echo "frontend/dist: PASS"
+echo "frontend/dist/index.html: PASS"
 
 echo
-echo "===== FRONTEND LAYOUT FIX COMPLETE ====="
+echo "=== 5. VERIFY NO FRONTEND WARNING CONDITION ==="
+
+PYTHONPATH="$OUT" \
+"$VENV/bin/python" -c \
+"from pathlib import Path; p=Path('frontend/dist'); print('Frontend directory:', p.resolve()); print('Frontend exists:', p.is_dir()); assert p.is_dir()"
+
+echo
+echo "=== 6. VERIFY COMPILED ARTIFACTS ==="
+
+test -f "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so"
+test -f "$OUT/backend/app.cpython-311-x86_64-linux-gnu.so"
+
+echo "AWA binary: PASS"
+echo "APP binary: PASS"
+
+echo
+echo "=============================================="
+echo " FULL PROTECTED APPLICATION SMOKE TEST: PASS"
+echo "=============================================="
