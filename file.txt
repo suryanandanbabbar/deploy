@@ -1,19 +1,29 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
-
-echo "===== COMPILING BACKEND.APP PACKAGE ====="
-
-PYTHONPATH=. \
-"$VENV/bin/python" -m nuitka \
-  --mode=package \
-  --include-package=backend.app \
-  backend/app \
-  --output-dir=deployment/app_package_py311 \
-  --remove-output
+echo "===== INSPECTING BACKEND.APP NUITKA OUTPUT ====="
 
 echo
-echo "===== BACKEND.APP BUILD OUTPUT ====="
+echo "--- ALL FILES ---"
+find deployment/app_package_py311 -type f | sort
 
-ls -lh deployment/app_package_py311/
+echo
+echo "--- PYTHON SOURCE / STUB FILES ---"
+find deployment/app_package_py311 -type f \
+  \( -name "*.py" -o -name "*.pyi" \) | sort
+
+echo
+echo "--- COMPILED EXTENSIONS ---"
+find deployment/app_package_py311 -type f -name "*.so" | sort
+
+echo
+echo "--- SOURCE FILE CHECK ---"
+
+SOURCE_COUNT=$(find deployment/app_package_py311 -type f -name "*.py" | wc -l)
+
+if [ "$SOURCE_COUNT" -ne 0 ]; then
+    echo "ERROR: $SOURCE_COUNT Python source file(s) found."
+    exit 1
+fi
+
+echo "NO PYTHON SOURCE: PASS"
