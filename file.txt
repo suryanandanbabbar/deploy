@@ -1,48 +1,36 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
-
-echo "===== BUILDING AWA RUNTIME TEST LAYOUT ====="
-
-rm -rf deployment/awa_runtime_test
-mkdir -p deployment/awa_runtime_test
+echo "===== INSPECTING NUITKA AWA OUTPUT ====="
 
 echo
-echo "--- COPYING COMPILED AWA ---"
-
-cp \
-  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-  deployment/awa_runtime_test/
-
-cp \
-  deployment/awa_package_py311/awa.pyi \
-  deployment/awa_runtime_test/
+echo "--- TOP LEVEL ---"
+find deployment/awa_package_py311 \
+  -maxdepth 2 \
+  -type f \
+  -printf '%p\n' \
+  | sort
 
 echo
-echo "--- COPYING RUNTIME GRAMMAR ---"
-
-cp \
-  deployment/grammar.lark \
-  deployment/awa_runtime_test/
-
-echo
-echo "--- TEST LAYOUT ---"
-
-ls -lh deployment/awa_runtime_test/
+echo "--- DIRECTORIES ---"
+find deployment/awa_package_py311 \
+  -maxdepth 4 \
+  -type d \
+  -printf '%p\n' \
+  | sort
 
 echo
-echo "--- COMPILED AWA IMPORT ---"
-
-cd deployment/awa_runtime_test
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"import awa; print('COMPILED AWA IMPORT: PASS'); print('AWA PATH:', awa.__file__)"
+echo "--- PYTHON SOURCE FILES ---"
+find deployment/awa_package_py311 \
+  -type f \
+  \( -name "*.py" -o -name "*.pyi" \) \
+  -printf '%p\n' \
+  | sort
 
 echo
-echo "--- COMPILED AWA PARSER ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('COMPILED AWA PARSER: PASS')"
+echo "--- COMPILED EXTENSIONS ---"
+find deployment/awa_package_py311 \
+  -type f \
+  -name "*.so" \
+  -printf '%p\n' \
+  | sort
