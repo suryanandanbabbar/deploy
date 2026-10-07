@@ -1,21 +1,48 @@
 %sh
 set -e
 
-echo "===== INSPECTING NUITKA AWA OUTPUT ====="
+VENV="/tmp/nuitka311"
+
+echo "===== CLEAN-ROOM COMPILED AWA TEST ====="
+
+rm -rf deployment/awa_runtime_test
+mkdir -p deployment/awa_runtime_test
 
 echo
-echo "--- ALL FILES ---"
-find deployment/awa_package_py311 -type f | sort
+echo "--- COPYING ONLY COMPILED AWA ARTIFACTS ---"
+
+cp \
+  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
+  deployment/awa_runtime_test/
+
+cp \
+  deployment/awa_package_py311/awa.pyi \
+  deployment/awa_runtime_test/
+
+cp \
+  deployment/grammar.lark \
+  deployment/awa_runtime_test/
 
 echo
-echo "--- ALL DIRECTORIES ---"
-find deployment/awa_package_py311 -type d | sort
+echo "--- VERIFY CLEAN TEST DIRECTORY ---"
+
+find deployment/awa_runtime_test -type f | sort
 
 echo
-echo "--- PYTHON SOURCE / STUB FILES ---"
-find deployment/awa_package_py311 -type f \
-  \( -name "*.py" -o -name "*.pyi" \) | sort
+echo "--- VERIFY NO PYTHON SOURCE EXISTS ---"
+
+if find deployment/awa_runtime_test -type f -name "*.py" | grep -q .; then
+    echo "ERROR: Python source exists in clean test directory"
+    exit 1
+fi
+
+echo "NO PYTHON SOURCE: PASS"
 
 echo
-echo "--- COMPILED EXTENSIONS ---"
-find deployment/awa_package_py311 -type f -name "*.so" | sort
+echo "--- COMPILED AWA IMPORT ---"
+
+cd deployment/awa_runtime_test
+
+PYTHONPATH="$PWD" \
+"$VENV/bin/python" -c \
+"import awa; print('COMPILED AWA IMPORT: PASS'); print('AWA PATH:', awa.__file__)"
