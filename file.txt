@@ -1,20 +1,25 @@
 %sh
 set -e
 
-export PATH="$HOME/.local/bin:$PATH"
-
 VENV="/tmp/nuitka311"
 
-echo "===== INSTALLING PROJECT DEPENDENCIES ====="
+echo "===== PYTHON 3.11 SOURCE IMPORT CHECK ====="
 
 echo
-echo "--- ROOT REQUIREMENTS ---"
-
-uv pip install \
-  --python "$VENV/bin/python" \
-  -r requirements.txt
+echo "--- Python ---"
+"$VENV/bin/python" --version
 
 echo
-echo "===== VERIFY INSTALLED DEPENDENCIES ====="
+echo "--- AWA IMPORT ---"
+PYTHONPATH="$PWD/backend:$PWD" \
+  "$VENV/bin/python" -c \
+  "import awa; print('AWA SOURCE IMPORT: PASS')"
 
-uv pip list --python "$VENV/bin/python" | head -80
+echo
+echo "--- FASTAPI APPLICATION IMPORT ---"
+PYTHONPATH="$PWD/backend:$PWD" \
+  "$VENV/bin/python" -c \
+  "from backend.app.main import app; print('FASTAPI SOURCE IMPORT: PASS'); print('ROUTES:', len(app.routes))"
+
+echo
+echo "===== SOURCE IMPORT CHECK COMPLETE ====="
