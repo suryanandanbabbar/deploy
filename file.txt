@@ -2,17 +2,100 @@
 set -e
 
 VENV="/tmp/nuitka311"
+ROOT="$PWD"
+OUT="$ROOT/deployment/protected_v2"
 
-echo "===== TESTING COMPILED BACKEND.APP ====="
+echo "===== FINAL PROTECTED DEPLOYMENT ASSEMBLY ====="
 
-cd deployment/namespace_test
-
-echo
-echo "--- IMPORT backend.app.main ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from backend.app.main import app; print('PROTECTED FASTAPI IMPORT: PASS'); print('APP FILE:', __import__('backend.app.main', fromlist=['app']).__file__); print('ROUTES:', len(app.routes))"
+rm -rf "$OUT"
 
 echo
-echo "===== BACKEND.APP TEST COMPLETE ====="
+echo "--- CREATE DIRECTORIES ---"
+
+mkdir -p "$OUT/backend/awa/expressions"
+
+echo
+echo "--- COPY BACKEND PACKAGE MARKER ---"
+
+touch "$OUT/backend/__init__.py"
+
+echo
+echo "--- COPY COMPILED AWA ---"
+
+cp \
+  "$ROOT/deployment/backend_awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so" \
+  "$OUT/backend/"
+
+cp \
+  "$ROOT/deployment/backend_awa_package_py311/awa.pyi" \
+  "$OUT/backend/"
+
+echo
+echo "--- COPY COMPILED BACKEND.APP ---"
+
+cp \
+  "$ROOT/deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so" \
+  "$OUT/backend/"
+
+cp \
+  "$ROOT/deployment/app_package_py311/app.pyi" \
+  "$OUT/backend/"
+
+echo
+echo "--- COPY REQUIRED AWA RUNTIME DATA ---"
+
+cp \
+  "$ROOT/deployment/grammar.lark" \
+  "$OUT/backend/awa/expressions/grammar.lark"
+
+echo
+echo "--- COPY FRONTEND BUILD ---"
+
+if [ ! -d "$ROOT/frontend/dist" ]; then
+    echo "ERROR: frontend/dist does not exist"
+    exit 1
+fi
+
+cp -R \
+  "$ROOT/frontend/dist" \
+  "$OUT/frontend"
+
+echo
+echo "--- COPY APPLICATION DEPLOYMENT FILES ---"
+
+cp "$ROOT/app.yaml" "$OUT/app.yaml"
+cp "$ROOT/start.sh" "$OUT/start.sh"
+cp "$ROOT/requirements.txt" "$OUT/requirements.txt"
+
+echo
+echo "--- FINAL ASSEMBLY TREE ---"
+
+find "$OUT" -type f | sort
+
+echo
+echo "===== ASSEMBLY COMPLETE ====="
+
+echo
+echo "--- ARTIFACT SIZES ---"
+
+du -h \
+  "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so" \
+  "$OUT/backend/app.cpython-311-x86_64-linux-gnu.so" \
+  "$OUT/backend/awa/expressions/grammar.lark"
+
+echo
+echo "--- SOURCE FILE CHECK ---"
+
+SOURCE_COUNT=$(find "$OUT" -type f -name "*.py" \
+    ! -path "$OUT/backend/__init__.py" | wc -l)
+
+echo "Proprietary .py files: $SOURCE_COUNT"
+
+if [ "$SOURCE_COUNT" -ne 0 ]; then
+    echo "ERROR: Proprietary Python source files found"
+    find "$OUT" -type f -name "*.py" \
+        ! -path "$OUT/backend/__init__.py"
+    exit 1
+fi
+
+echo "SOURCE CHECK: PASS"
