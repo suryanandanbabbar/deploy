@@ -3,78 +3,16 @@ set -e
 
 VENV="/tmp/nuitka311"
 
-echo "===== TESTING BACKEND.AWA NAMESPACE ====="
-
-rm -rf deployment/namespace_test
-
-mkdir -p deployment/namespace_test/backend/awa/expressions
-
-echo
-echo "--- COPYING BACKEND MARKER ---"
-
-touch deployment/namespace_test/backend/__init__.py
-
-echo
-echo "--- COPYING COMPILED AWA ---"
-
-cp \
-  deployment/backend_awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-  deployment/namespace_test/backend/
-
-cp \
-  deployment/backend_awa_package_py311/awa.pyi \
-  deployment/namespace_test/backend/
-
-echo
-echo "--- COPYING COMPILED BACKEND.APP ---"
-
-cp \
-  deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-  deployment/namespace_test/backend/
-
-cp \
-  deployment/app_package_py311/app.pyi \
-  deployment/namespace_test/backend/
-
-echo
-echo "--- COPYING GRAMMAR ---"
-
-cp \
-  deployment/grammar.lark \
-  deployment/namespace_test/backend/awa/expressions/grammar.lark
-
-echo
-echo "--- VERIFY TREE ---"
-
-find deployment/namespace_test -type f | sort
-
-echo
-echo "--- VERIFY AWA RESOURCE DIRECTORY HAS NO PYTHON PACKAGE MARKER ---"
-
-if [ -f deployment/namespace_test/backend/awa/__init__.py ]; then
-    echo "ERROR: backend/awa/__init__.py exists"
-    exit 1
-fi
-
-if [ -f deployment/namespace_test/backend/awa/expressions/__init__.py ]; then
-    echo "ERROR: backend/awa/expressions/__init__.py exists"
-    exit 1
-fi
-
-echo "NO AWA SOURCE PACKAGE MARKERS: PASS"
-
-echo
-echo "--- TEST backend.awa IMPORT ---"
+echo "===== TESTING COMPILED BACKEND.APP ====="
 
 cd deployment/namespace_test
 
+echo
+echo "--- IMPORT backend.app.main ---"
+
 PYTHONPATH="$PWD" \
 "$VENV/bin/python" -c \
-"import backend.awa; print('BACKEND.AWA IMPORT: PASS'); print('AWA FILE:', backend.awa.__file__); print('AWA PATH:', getattr(backend.awa, '__path__', None))"
+"from backend.app.main import app; print('PROTECTED FASTAPI IMPORT: PASS'); print('APP FILE:', __import__('backend.app.main', fromlist=['app']).__file__); print('ROUTES:', len(app.routes))"
 
 echo
-echo "--- TEST backend.awa PARSER ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from backend.awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('BACKEND.AWA PARSER: PASS')"
+echo "===== BACKEND.APP TEST COMPLETE ====="
