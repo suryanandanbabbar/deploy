@@ -1,18 +1,24 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
+echo "===== PRESERVING AWA RUNTIME GRAMMAR ====="
 
-echo "===== COMPILING AWA PACKAGE ====="
-
-PYTHONPATH=backend \
-"$VENV/bin/python" -m nuitka \
-  --mode=package \
-  --include-package=awa \
-  backend/awa \
-  --output-dir=deployment/awa_package_py311 \
-  --remove-output
+GRAMMAR="backend/awa/expressions/grammar.lark"
+TARGET="deployment/grammar.lark"
 
 echo
-echo "===== AWA BUILD OUTPUT ====="
-ls -lh deployment/awa_package_py311/
+echo "--- SOURCE GRAMMAR ---"
+ls -lh "$GRAMMAR"
+
+echo
+echo "--- COPYING GRAMMAR ---"
+cp "$GRAMMAR" "$TARGET"
+
+echo
+echo "--- VERIFYING TARGET ---"
+ls -lh "$TARGET"
+
+echo
+echo "--- SHA256 CHECK ---"
+sha256sum "$GRAMMAR"
+sha256sum "$TARGET"
