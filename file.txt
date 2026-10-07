@@ -1,16 +1,22 @@
 %sh
 set -e
 
-echo "===== INSTALLING NUITKA 4.2.2 ====="
-
 export PATH="$HOME/.local/bin:$PATH"
 
 VENV="/tmp/nuitka311"
 
-"$VENV/bin/python" -m pip install --upgrade pip
+echo "===== INSTALLING NUITKA 4.2.2 ====="
 
-"$VENV/bin/python" -m pip install "Nuitka==4.2.2"
+uv pip install \
+  --python "$VENV/bin/python" \
+  "Nuitka==4.2.2"
 
 echo
 echo "===== VERIFY NUITKA ====="
+
 "$VENV/bin/python" -m nuitka --version
+
+echo
+echo "===== VERIFY PYTHON ====="
+
+"$VENV/bin/python" --version
