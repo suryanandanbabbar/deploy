@@ -1,31 +1,16 @@
 %sh
 set -e
 
-echo "===== PYTHON ====="
-python3 --version
-which python3
+echo "===== CREATING PYTHON 3.11 BUILD ENVIRONMENT ====="
+
+rm -rf /tmp/nuitka311
+
+python3 -m venv /tmp/nuitka311
 
 echo
-echo "===== PLATFORM ====="
-uname -a
-uname -m
+echo "===== PYTHON VERSION ====="
+/tmp/nuitka311/bin/python --version
 
 echo
-echo "===== WORKING DIRECTORY ====="
-pwd
-
-echo
-echo "===== DIRECTORY CONTENTS ====="
-ls -la
-
-
-%sh
-set -e
-
-echo "Current directory:"
-pwd
-
-echo
-echo "Searching for backend/frontend:"
-find . -maxdepth 3 -type d \( -name backend -o -name frontend \) -print
-
+echo "===== PYTHON LOCATION ====="
+which /tmp/nuitka311/bin/python
