@@ -1,168 +1,47 @@
 %sh
 set -e
 
-OUT="$PWD/deployment/protected_v2"
+ROOT="$PWD"
+OUT="$ROOT/deployment/protected_v2"
 
-echo "=============================================="
-echo " FINAL PROTECTED ARTIFACT SECURITY AUDIT"
-echo "=============================================="
-
-echo
-echo "=== 1. FILE INVENTORY ==="
-
-find "$OUT" -type f -printf '%p\n' | sort
+echo "===== FIXING FRONTEND DIST LAYOUT ====="
 
 echo
-echo "=== 2. PROPRIETARY PYTHON SOURCE ==="
+echo "--- REMOVE INCORRECT FRONTEND CONTENT ---"
 
-PY_COUNT=$(find "$OUT" -type f -name "*.py" \
-    ! -path "$OUT/backend/__init__.py" | wc -l)
-
-echo "Proprietary .py files: $PY_COUNT"
-
-if [ "$PY_COUNT" -ne 0 ]; then
-    echo "FAIL: Proprietary Python source detected"
-    find "$OUT" -type f -name "*.py" \
-        ! -path "$OUT/backend/__init__.py"
-    exit 1
-fi
-
-echo "PASS"
+rm -rf "$OUT/frontend"
 
 echo
-echo "=== 3. PYTHON BYTECODE ==="
+echo "--- CREATE CORRECT DIRECTORY ---"
 
-PYC_COUNT=$(find "$OUT" -type f \( -name "*.pyc" -o -name "*.pyo" \) | wc -l)
-
-echo "Bytecode files: $PYC_COUNT"
-
-if [ "$PYC_COUNT" -ne 0 ]; then
-    echo "FAIL: Python bytecode detected"
-    find "$OUT" -type f \( -name "*.pyc" -o -name "*.pyo" \)
-    exit 1
-fi
-
-echo "PASS"
+mkdir -p "$OUT/frontend"
 
 echo
-echo "=== 4. __pycache__ DIRECTORIES ==="
+echo "--- COPY FRONTEND DIST ---"
 
-CACHE_COUNT=$(find "$OUT" -type d -name "__pycache__" | wc -l)
-
-echo "__pycache__ directories: $CACHE_COUNT"
-
-if [ "$CACHE_COUNT" -ne 0 ]; then
-    echo "FAIL: __pycache__ detected"
-    find "$OUT" -type d -name "__pycache__"
-    exit 1
-fi
-
-echo "PASS"
+cp -R \
+  "$ROOT/frontend/dist" \
+  "$OUT/frontend/dist"
 
 echo
-echo "=== 5. ENVIRONMENT / SECRET FILES ==="
+echo "--- VERIFY ---"
 
-SECRET_FILES=$(find "$OUT" -type f \
-    \( -name ".env" \
-    -o -name ".env.*" \
-    -o -name "*private*key*" \
-    -o -name "*secret*.pem" \
-    -o -name "*.key" \
-    -o -name "*.pem" \) | grep -v '/frontend/' || true)
-
-if [ -n "$SECRET_FILES" ]; then
-    echo "FAIL: Potential secret files detected:"
-    echo "$SECRET_FILES"
-    exit 1
-fi
-
-echo "Secret-file check: PASS"
+find "$OUT/frontend" -type f -printf '%p\n' | sort
 
 echo
-echo "=== 6. GIT / DEVELOPMENT ARTIFACTS ==="
-
-DEV_COUNT=$(find "$OUT" -type d \
-    \( -name ".git" \
-    -o -name ".github" \
-    -o -name ".pytest_cache" \
-    -o -name ".mypy_cache" \) | wc -l)
-
-echo "Development directories: $DEV_COUNT"
-
-if [ "$DEV_COUNT" -ne 0 ]; then
-    echo "FAIL: Development artifacts detected"
-    find "$OUT" -type d \
-        \( -name ".git" \
-        -o -name ".github" \
-        -o -name ".pytest_cache" \
-        -o -name ".mypy_cache" \)
-    exit 1
-fi
-
-echo "PASS"
-
-echo
-echo "=== 7. FILE SIZE LIMIT ==="
-
-MAX_BYTES=$((10 * 1024 * 1024))
-
-LARGE_FILES=0
-
-while IFS= read -r FILE; do
-    SIZE=$(stat -c '%s' "$FILE")
-
-    if [ "$SIZE" -gt "$MAX_BYTES" ]; then
-        echo "OVER 10 MB: $FILE ($SIZE bytes)"
-        LARGE_FILES=$((LARGE_FILES + 1))
-    fi
-done < <(find "$OUT" -type f)
-
-if [ "$LARGE_FILES" -ne 0 ]; then
-    echo "FAIL: $LARGE_FILES file(s) exceed 10 MB"
-    exit 1
-fi
-
-echo "All files <= 10 MB: PASS"
-
-echo
-echo "=== 8. COMPILED ARTIFACTS ==="
-
-ls -lh \
-    "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so" \
-    "$OUT/backend/app.cpython-311-x86_64-linux-gnu.so"
-
-echo
-echo "=== 9. REQUIRED RUNTIME DATA ==="
-
-if [ ! -f "$OUT/backend/awa/expressions/grammar.lark" ]; then
-    echo "FAIL: grammar.lark missing"
-    exit 1
-fi
+echo "--- CHECK REQUIRED PATH ---"
 
 if [ ! -d "$OUT/frontend/dist" ]; then
-    echo "FAIL: frontend/dist missing"
+    echo "ERROR: frontend/dist still missing"
     exit 1
 fi
 
-echo "grammar.lark: PASS"
+if [ ! -f "$OUT/frontend/dist/index.html" ]; then
+    echo "ERROR: frontend/dist/index.html missing"
+    exit 1
+fi
+
 echo "frontend/dist: PASS"
 
 echo
-echo "=== 10. AWA PACKAGE MARKER CHECK ==="
-
-if [ -f "$OUT/backend/awa/__init__.py" ]; then
-    echo "FAIL: backend/awa/__init__.py exists"
-    exit 1
-fi
-
-if [ -f "$OUT/backend/awa/expressions/__init__.py" ]; then
-    echo "FAIL: backend/awa/expressions/__init__.py exists"
-    exit 1
-fi
-
-echo "No AWA source package markers: PASS"
-
-echo
-echo "=============================================="
-echo " SECURITY AUDIT COMPLETE: PASS"
-echo "=============================================="
+echo "===== FRONTEND LAYOUT FIX COMPLETE ====="
