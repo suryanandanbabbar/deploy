@@ -1,62 +1,134 @@
-%sh
-set -e
+import os
+import time
+import subprocess
+import urllib.request
 
-OUT="$PWD/deployment/protected_v2"
+OUT = os.path.abspath("deployment/protected_v2")
+VENV = "/tmp/nuitka311"
 
-echo "=============================================="
-echo " DATABRICKS STARTUP CONFIGURATION VALIDATION"
-echo "=============================================="
+# Retrieve the signed production license artifact without printing it.
+license_artifact = dbutils.secrets.get(
+    scope="alteryx-licenseArtifacts",
+    key="alteryx-license",
+)
 
-echo
-echo "=== 1. app.yaml ==="
+env = os.environ.copy()
 
-cat "$OUT/app.yaml"
+# Force the tested Python 3.11 runtime.
+env["PATH"] = f"{VENV}/bin:" + env["PATH"]
+env["PYTHONPATH"] = OUT
 
-echo
-echo "=== 2. VERIFY app.yaml START COMMAND ==="
+# Production license artifact.
+env["ALTERYX_LICENSE_ARTIFACT"] = license_artifact
 
-grep -q '"/bin/bash"' "$OUT/app.yaml"
-grep -q '"./start.sh"' "$OUT/app.yaml"
+# Use the same non-secret LLM configuration expected by the application.
+env["AZURE_ENDPOINT"] = env.get(
+    "AZURE_ENDPOINT",
+    "https://llama--resource.services.ai.azure.com/openai/v1"
+)
+env["AZURE_DEPLOYMENT"] = env.get(
+    "AZURE_DEPLOYMENT",
+    "Llama-4-Maverick-17B-128E-Instruct-FP8"
+)
+env["AZURE_DEPLOYMENT_NAME"] = env.get(
+    "AZURE_DEPLOYMENT_NAME",
+    "Llama-4-Maverick-17B-128E-Instruct-FP8"
+)
+env["AWA_LLM_TEMPERATURE"] = "0.0"
+env["AWA_LLM_TIMEOUT"] = "30.0"
+env["AWA_LLM_BUSINESS_REPORT_TIMEOUT_SECONDS"] = "60.0"
+env["AWA_LLM_RETRY_ATTEMPTS"] = "2"
+env["AWA_LLM_MAX_TOKENS"] = "500"
+env["AWA_LLM_ENABLED"] = "true"
 
-echo "app.yaml command: PASS"
+PORT = "8000"
+env["DATABRICKS_APP_PORT"] = PORT
 
-echo
-echo "=== 3. start.sh ==="
+print("==============================================")
+print(" PROTECTED PRODUCTION RUNTIME TEST")
+print("==============================================")
+print()
+print("Python:", VENV)
+print("Application:", OUT)
+print("License artifact: supplied from Databricks secret")
+print("License value: NOT PRINTED")
+print()
 
-cat "$OUT/start.sh"
+process = subprocess.Popen(
+    ["./start.sh"],
+    cwd=OUT,
+    env=env,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+)
 
-echo
-echo "=== 4. SHELL SYNTAX ==="
+try:
+    started = False
+    startup_lines = []
 
-bash -n "$OUT/start.sh"
+    for _ in range(30):
+        time.sleep(1)
 
-echo "start.sh syntax: PASS"
+        while process.stdout and process.poll() is None:
+            line = process.stdout.readline()
+            if not line:
+                break
 
-echo
-echo "=== 5. EXECUTE PERMISSION ==="
+            line = line.rstrip()
+            startup_lines.append(line)
+            print(line)
 
-if [ ! -x "$OUT/start.sh" ]; then
-    echo "ERROR: start.sh is not executable"
-    chmod +x "$OUT/start.sh"
-fi
+            if "Application startup complete" in line:
+                started = True
+                break
 
-ls -l "$OUT/start.sh"
+        if started:
+            break
 
-echo
-echo "=== 6. DATABRICKS PORT HANDLING ==="
+    if process.poll() is not None:
+        print()
+        print("PROCESS EXITED EARLY")
+        print("Exit code:", process.returncode)
+        raise RuntimeError("Protected application failed during startup")
 
-grep -q 'DATABRICKS_APP_PORT' "$OUT/start.sh"
+    print()
+    print("=== HTTP TESTS ===")
 
-echo "DATABRICKS_APP_PORT handling: PASS"
+    def http_status(path):
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{PORT}{path}",
+            timeout=10,
+        ) as response:
+            body = response.read()
+            return response.status, body
 
-echo
-echo "=== 7. UVICORN ENTRYPOINT ==="
+    status, body = http_status("/api/config")
+    print("/api/config:", status)
+    assert status == 200
 
-grep -q 'backend.app.main:app' "$OUT/start.sh"
+    status, body = http_status("/")
+    print("/:", status)
+    assert status == 200
 
-echo "backend.app.main:app entrypoint: PASS"
+    status, body = http_status("/index.html")
+    print("/index.html:", status)
+    assert status == 200
 
-echo
-echo "=============================================="
-echo " STARTUP CONFIGURATION: PASS"
-echo "=============================================="
+    print()
+    print("==============================================")
+    print(" PROTECTED PRODUCTION RUNTIME TEST: PASS")
+    print("==============================================")
+
+finally:
+    if process.poll() is None:
+        process.terminate()
+
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+    print()
+    print("Application process stopped cleanly.")
