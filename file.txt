@@ -1,24 +1,29 @@
 %sh
 set -e
 
-echo "===== PRESERVING AWA RUNTIME GRAMMAR ====="
+VENV="/tmp/nuitka311"
 
-GRAMMAR="backend/awa/expressions/grammar.lark"
-TARGET="deployment/grammar.lark"
+echo "===== TESTING COMPILED AWA PACKAGE ====="
 
-echo
-echo "--- SOURCE GRAMMAR ---"
-ls -lh "$GRAMMAR"
+cd deployment
 
 echo
-echo "--- COPYING GRAMMAR ---"
-cp "$GRAMMAR" "$TARGET"
+echo "--- AWA COMPILED BINARY ---"
+ls -lh awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so
+ls -lh awa_package_py311/awa.pyi
 
 echo
-echo "--- VERIFYING TARGET ---"
-ls -lh "$TARGET"
+echo "--- RUNTIME GRAMMAR ---"
+ls -lh grammar.lark
 
 echo
-echo "--- SHA256 CHECK ---"
-sha256sum "$GRAMMAR"
-sha256sum "$TARGET"
+echo "--- IMPORTING COMPILED AWA ---"
+PYTHONPATH="$PWD/awa_package_py311:$PWD" \
+"$VENV/bin/python" -c \
+"import awa; print('COMPILED AWA IMPORT: PASS'); print('AWA PATH:', awa.__file__)"
+
+echo
+echo "--- TESTING COMPILED AWA PARSER ---"
+PYTHONPATH="$PWD/awa_package_py311:$PWD" \
+"$VENV/bin/python" -c \
+"from awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('COMPILED AWA PARSER: PASS')"
