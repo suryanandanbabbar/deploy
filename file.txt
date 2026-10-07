@@ -3,35 +3,17 @@ set -e
 
 VENV="/tmp/nuitka311"
 
-echo "===== TESTING AWA PACKAGE-RELATIVE GRAMMAR ====="
+echo "===== COMPILING BACKEND.APP PACKAGE ====="
 
-cd deployment/awa_runtime_test
-
-echo
-echo "--- CREATING AWA RESOURCE PATH ---"
-
-mkdir -p awa/expressions
-
-cp ../grammar.lark awa/expressions/grammar.lark
-
-echo
-echo "--- VERIFYING RESOURCE ---"
-
-ls -lh awa/expressions/grammar.lark
+PYTHONPATH=. \
+"$VENV/bin/python" -m nuitka \
+  --mode=package \
+  --include-package=backend.app \
+  backend/app \
+  --output-dir=deployment/app_package_py311 \
+  --remove-output
 
 echo
-echo "--- VERIFYING NO PYTHON SOURCE ---"
+echo "===== BACKEND.APP BUILD OUTPUT ====="
 
-if find . -type f -name "*.py" | grep -q .; then
-    echo "ERROR: Python source found"
-    exit 1
-fi
-
-echo "NO PYTHON SOURCE: PASS"
-
-echo
-echo "--- TESTING COMPILED AWA PARSER ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('COMPILED AWA PARSER: PASS')"
+ls -lh deployment/app_package_py311/
