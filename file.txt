@@ -3,27 +3,46 @@ set -e
 
 VENV="/tmp/nuitka311"
 
-echo "===== TESTING COMPILED AWA PACKAGE ====="
+echo "===== BUILDING AWA RUNTIME TEST LAYOUT ====="
 
-cd deployment
-
-echo
-echo "--- AWA COMPILED BINARY ---"
-ls -lh awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so
-ls -lh awa_package_py311/awa.pyi
+rm -rf deployment/awa_runtime_test
+mkdir -p deployment/awa_runtime_test
 
 echo
-echo "--- RUNTIME GRAMMAR ---"
-ls -lh grammar.lark
+echo "--- COPYING COMPILED AWA ---"
+
+cp \
+  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
+  deployment/awa_runtime_test/
+
+cp \
+  deployment/awa_package_py311/awa.pyi \
+  deployment/awa_runtime_test/
 
 echo
-echo "--- IMPORTING COMPILED AWA ---"
-PYTHONPATH="$PWD/awa_package_py311:$PWD" \
+echo "--- COPYING RUNTIME GRAMMAR ---"
+
+cp \
+  deployment/grammar.lark \
+  deployment/awa_runtime_test/
+
+echo
+echo "--- TEST LAYOUT ---"
+
+ls -lh deployment/awa_runtime_test/
+
+echo
+echo "--- COMPILED AWA IMPORT ---"
+
+cd deployment/awa_runtime_test
+
+PYTHONPATH="$PWD" \
 "$VENV/bin/python" -c \
 "import awa; print('COMPILED AWA IMPORT: PASS'); print('AWA PATH:', awa.__file__)"
 
 echo
-echo "--- TESTING COMPILED AWA PARSER ---"
-PYTHONPATH="$PWD/awa_package_py311:$PWD" \
+echo "--- COMPILED AWA PARSER ---"
+
+PYTHONPATH="$PWD" \
 "$VENV/bin/python" -c \
 "from awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('COMPILED AWA PARSER: PASS')"
