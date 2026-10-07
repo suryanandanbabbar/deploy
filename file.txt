@@ -1,25 +1,15 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
+echo "===== PREPARING NUITKA BUILD DIRECTORIES ====="
 
-echo "===== PYTHON 3.11 SOURCE IMPORT CHECK ====="
+rm -rf deployment/awa_package_py311
+rm -rf deployment/app_package_py311
 
-echo
-echo "--- Python ---"
-"$VENV/bin/python" --version
-
-echo
-echo "--- AWA IMPORT ---"
-PYTHONPATH="$PWD/backend:$PWD" \
-  "$VENV/bin/python" -c \
-  "import awa; print('AWA SOURCE IMPORT: PASS')"
+mkdir -p deployment/awa_package_py311
+mkdir -p deployment/app_package_py311
 
 echo
-echo "--- FASTAPI APPLICATION IMPORT ---"
-PYTHONPATH="$PWD/backend:$PWD" \
-  "$VENV/bin/python" -c \
-  "from backend.app.main import app; print('FASTAPI SOURCE IMPORT: PASS'); print('ROUTES:', len(app.routes))"
-
-echo
-echo "===== SOURCE IMPORT CHECK COMPLETE ====="
+echo "===== BUILD DIRECTORIES ====="
+ls -ld deployment/awa_package_py311
+ls -ld deployment/app_package_py311
