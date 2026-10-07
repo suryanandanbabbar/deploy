@@ -1,22 +1,16 @@
 %sh
 set -e
 
-export PATH="$HOME/.local/bin:$PATH"
-
 VENV="/tmp/nuitka311"
 
-echo "===== INSTALLING NUITKA 4.2.2 ====="
+echo "===== INSTALLING PROJECT DEPENDENCIES ====="
 
-uv pip install \
+echo
+echo "--- ROOT REQUIREMENTS ---"
+"$VENV/bin/python" -m uv pip install \
   --python "$VENV/bin/python" \
-  "Nuitka==4.2.2"
+  -r requirements.txt
 
 echo
-echo "===== VERIFY NUITKA ====="
-
-"$VENV/bin/python" -m nuitka --version
-
-echo
-echo "===== VERIFY PYTHON ====="
-
-"$VENV/bin/python" --version
+echo "===== DEPENDENCIES INSTALLED ====="
+"$VENV/bin/python" -m uv pip list | head -80
