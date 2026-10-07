@@ -3,81 +3,20 @@ set -e
 
 VENV="/tmp/nuitka311"
 
-echo "===== CLEAN PROTECTED RUNTIME SMOKE TEST ====="
+echo "===== COMPILING BACKEND.AWA PACKAGE ====="
 
-rm -rf deployment/protected_runtime_test
+rm -rf deployment/backend_awa_package_py311
+mkdir -p deployment/backend_awa_package_py311
 
-mkdir -p deployment/protected_runtime_test/backend
-mkdir -p deployment/protected_runtime_test/awa/expressions
-
-echo
-echo "--- COPYING COMPILED AWA ---"
-
-cp \
-  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-  deployment/protected_runtime_test/
-
-cp \
-  deployment/awa_package_py311/awa.pyi \
-  deployment/protected_runtime_test/
+PYTHONPATH=. \
+"$VENV/bin/python" -m nuitka \
+  --mode=package \
+  --include-package=backend.awa \
+  backend/awa \
+  --output-dir=deployment/backend_awa_package_py311 \
+  --remove-output
 
 echo
-echo "--- COPYING COMPILED BACKEND.APP ---"
+echo "===== BACKEND.AWA BUILD OUTPUT ====="
 
-cp \
-  deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-  deployment/protected_runtime_test/backend/
-
-cp \
-  deployment/app_package_py311/app.pyi \
-  deployment/protected_runtime_test/backend/
-
-echo
-echo "--- BACKEND PACKAGE MARKER ---"
-
-touch deployment/protected_runtime_test/backend/__init__.py
-
-echo
-echo "--- COPYING GRAMMAR TO VALIDATED PACKAGE-RELATIVE LOCATION ---"
-
-cp \
-  deployment/grammar.lark \
-  deployment/protected_runtime_test/awa/expressions/grammar.lark
-
-echo
-echo "--- VERIFY RUNTIME TREE ---"
-
-find deployment/protected_runtime_test -type f | sort
-
-echo
-echo "--- VERIFY NO PROPRIETARY PYTHON SOURCE ---"
-
-SOURCE_COUNT=$(find deployment/protected_runtime_test -type f -name "*.py" | wc -l)
-
-if [ "$SOURCE_COUNT" -gt 1 ]; then
-    echo "ERROR: Unexpected Python source files found:"
-    find deployment/protected_runtime_test -type f -name "*.py"
-    exit 1
-fi
-
-echo "Python source count: $SOURCE_COUNT"
-echo "Only backend/__init__.py is permitted."
-
-echo
-echo "--- TEST COMPILED AWA ---"
-
-cd deployment/protected_runtime_test
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('PROTECTED AWA: PASS')"
-
-echo
-echo "--- TEST COMPILED BACKEND.APP ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from backend.app.main import app; print('PROTECTED FASTAPI: PASS'); print('ROUTES:', len(app.routes))"
-
-echo
-echo "===== PROTECTED RUNTIME SMOKE TEST: PASS ====="
+find deployment/backend_awa_package_py311 -type f | sort
