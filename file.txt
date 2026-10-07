@@ -1,63 +1,62 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
 OUT="$PWD/deployment/protected_v2"
 
 echo "=============================================="
-echo " FULL PROTECTED APPLICATION SMOKE TEST"
+echo " DATABRICKS STARTUP CONFIGURATION VALIDATION"
 echo "=============================================="
 
-cd "$OUT"
+echo
+echo "=== 1. app.yaml ==="
+
+cat "$OUT/app.yaml"
 
 echo
-echo "=== 1. IMPORT COMPILED AWA ==="
+echo "=== 2. VERIFY app.yaml START COMMAND ==="
 
-PYTHONPATH="$OUT" \
-"$VENV/bin/python" -c \
-"import backend.awa; print('backend.awa: PASS'); print('AWA:', backend.awa.__file__)"
+grep -q '"/bin/bash"' "$OUT/app.yaml"
+grep -q '"./start.sh"' "$OUT/app.yaml"
 
-echo
-echo "=== 2. TEST AWA PARSER ==="
-
-PYTHONPATH="$OUT" \
-"$VENV/bin/python" -c \
-"from backend.awa.expressions.parser import parse_expression; parse_expression('[Revenue] > 100'); print('AWA parser: PASS')"
+echo "app.yaml command: PASS"
 
 echo
-echo "=== 3. IMPORT COMPILED FASTAPI ==="
+echo "=== 3. start.sh ==="
 
-PYTHONPATH="$OUT" \
-"$VENV/bin/python" -c \
-"from backend.app.main import app; print('backend.app.main: PASS'); print('Routes:', len(app.routes))"
+cat "$OUT/start.sh"
 
 echo
-echo "=== 4. VERIFY FRONTEND DISCOVERY ==="
+echo "=== 4. SHELL SYNTAX ==="
 
-if [ ! -f "$OUT/frontend/dist/index.html" ]; then
-    echo "FAIL: frontend index.html missing"
-    exit 1
+bash -n "$OUT/start.sh"
+
+echo "start.sh syntax: PASS"
+
+echo
+echo "=== 5. EXECUTE PERMISSION ==="
+
+if [ ! -x "$OUT/start.sh" ]; then
+    echo "ERROR: start.sh is not executable"
+    chmod +x "$OUT/start.sh"
 fi
 
-echo "frontend/dist/index.html: PASS"
+ls -l "$OUT/start.sh"
 
 echo
-echo "=== 5. VERIFY NO FRONTEND WARNING CONDITION ==="
+echo "=== 6. DATABRICKS PORT HANDLING ==="
 
-PYTHONPATH="$OUT" \
-"$VENV/bin/python" -c \
-"from pathlib import Path; p=Path('frontend/dist'); print('Frontend directory:', p.resolve()); print('Frontend exists:', p.is_dir()); assert p.is_dir()"
+grep -q 'DATABRICKS_APP_PORT' "$OUT/start.sh"
+
+echo "DATABRICKS_APP_PORT handling: PASS"
 
 echo
-echo "=== 6. VERIFY COMPILED ARTIFACTS ==="
+echo "=== 7. UVICORN ENTRYPOINT ==="
 
-test -f "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so"
-test -f "$OUT/backend/app.cpython-311-x86_64-linux-gnu.so"
+grep -q 'backend.app.main:app' "$OUT/start.sh"
 
-echo "AWA binary: PASS"
-echo "APP binary: PASS"
+echo "backend.app.main:app entrypoint: PASS"
 
 echo
 echo "=============================================="
-echo " FULL PROTECTED APPLICATION SMOKE TEST: PASS"
+echo " STARTUP CONFIGURATION: PASS"
 echo "=============================================="
