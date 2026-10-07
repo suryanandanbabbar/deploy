@@ -1,15 +1,18 @@
 %sh
 set -e
 
-echo "===== PREPARING NUITKA BUILD DIRECTORIES ====="
+VENV="/tmp/nuitka311"
 
-rm -rf deployment/awa_package_py311
-rm -rf deployment/app_package_py311
+echo "===== COMPILING AWA PACKAGE ====="
 
-mkdir -p deployment/awa_package_py311
-mkdir -p deployment/app_package_py311
+PYTHONPATH=backend \
+"$VENV/bin/python" -m nuitka \
+  --mode=package \
+  --include-package=awa \
+  backend/awa \
+  --output-dir=deployment/awa_package_py311 \
+  --remove-output
 
 echo
-echo "===== BUILD DIRECTORIES ====="
-ls -ld deployment/awa_package_py311
-ls -ld deployment/app_package_py311
+echo "===== AWA BUILD OUTPUT ====="
+ls -lh deployment/awa_package_py311/
