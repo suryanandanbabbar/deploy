@@ -1,70 +1,43 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
+ROOT="$PWD"
+OUT="$ROOT/deployment/protected_v2"
 
-echo "===== TESTING SMALL AWA ARTIFACT AS backend.awa ====="
-
-rm -rf deployment/small_awa_namespace_test
-
-mkdir -p deployment/small_awa_namespace_test/backend/awa/expressions
+echo "===== REPLACING AWA WITH VERIFIED SMALL ARTIFACT ====="
 
 echo
-echo "--- BACKEND PACKAGE MARKER ---"
+echo "--- REMOVE 16 MB AWA ARTIFACT ---"
 
-touch deployment/small_awa_namespace_test/backend/__init__.py
+rm -f \
+  "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so"
+
+rm -f \
+  "$OUT/backend/awa.pyi"
 
 echo
-echo "--- COPY SMALL AWA ARTIFACT ---"
+echo "--- COPY VERIFIED 8.2 MB AWA ARTIFACT ---"
 
 cp \
-  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-  deployment/small_awa_namespace_test/backend/
+  "$ROOT/deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so" \
+  "$OUT/backend/"
 
 cp \
-  deployment/awa_package_py311/awa.pyi \
-  deployment/small_awa_namespace_test/backend/
+  "$ROOT/deployment/awa_package_py311/awa.pyi" \
+  "$OUT/backend/"
 
 echo
-echo "--- COPY COMPILED APP ---"
+echo "--- VERIFY AWA SIZE ---"
 
-cp \
-  deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so \
-  deployment/small_awa_namespace_test/backend/
-
-cp \
-  deployment/app_package_py311/app.pyi \
-  deployment/small_awa_namespace_test/backend/
+stat -c "AWA artifact: %n
+Bytes: %s
+MiB: %.2f" \
+  "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so"
 
 echo
-echo "--- COPY GRAMMAR ---"
+echo "--- VERIFY FINAL BACKEND TREE ---"
 
-cp \
-  deployment/grammar.lark \
-  deployment/small_awa_namespace_test/backend/awa/expressions/grammar.lark
-
-cd deployment/small_awa_namespace_test
+find "$OUT/backend" -type f -printf '%p\n' | sort
 
 echo
-echo "--- TEST backend.awa ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"import backend.awa; print('SMALL AWA backend.awa IMPORT: PASS'); print('AWA FILE:', backend.awa.__file__)"
-
-echo
-echo "--- TEST PARSER ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from backend.awa.expressions.parser import parse_expression; print(parse_expression('[Revenue] > 100')); print('SMALL AWA PARSER: PASS')"
-
-echo
-echo "--- TEST COMPILED FASTAPI ---"
-
-PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"from backend.app.main import app; print('SMALL AWA + APP IMPORT: PASS'); print('ROUTES:', len(app.routes))"
-
-echo
-echo "===== SMALL AWA NAMESPACE TEST COMPLETE ====="
+echo "===== SMALL AWA REPLACEMENT COMPLETE ====="
