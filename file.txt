@@ -1,22 +1,16 @@
 %sh
 set -e
 
+echo "===== INSTALLING NUITKA 4.2.2 ====="
+
 export PATH="$HOME/.local/bin:$PATH"
 
-echo "===== CREATING FRESH PYTHON 3.11 VENV ====="
+VENV="/tmp/nuitka311"
 
-rm -rf /tmp/nuitka311
+"$VENV/bin/python" -m pip install --upgrade pip
 
-uv venv --python 3.11 /tmp/nuitka311
-
-echo
-echo "===== VERIFY VENV ====="
-/tmp/nuitka311/bin/python --version
+"$VENV/bin/python" -m pip install "Nuitka==4.2.2"
 
 echo
-echo "===== VERIFY ARCHITECTURE ====="
-/tmp/nuitka311/bin/python -c "import platform; print('Machine:', platform.machine())"
-
-echo
-echo "===== VERIFY INTERPRETER ====="
-readlink -f /tmp/nuitka311/bin/python
+echo "===== VERIFY NUITKA ====="
+"$VENV/bin/python" -m nuitka --version
