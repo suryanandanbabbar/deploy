@@ -4,33 +4,18 @@ set -e
 echo "===== INSPECTING NUITKA AWA OUTPUT ====="
 
 echo
-echo "--- TOP LEVEL ---"
-find deployment/awa_package_py311 \
-  -maxdepth 2 \
-  -type f \
-  -printf '%p\n' \
-  | sort
+echo "--- ALL FILES ---"
+find deployment/awa_package_py311 -type f | sort
 
 echo
-echo "--- DIRECTORIES ---"
-find deployment/awa_package_py311 \
-  -maxdepth 4 \
-  -type d \
-  -printf '%p\n' \
-  | sort
+echo "--- ALL DIRECTORIES ---"
+find deployment/awa_package_py311 -type d | sort
 
 echo
-echo "--- PYTHON SOURCE FILES ---"
-find deployment/awa_package_py311 \
-  -type f \
-  \( -name "*.py" -o -name "*.pyi" \) \
-  -printf '%p\n' \
-  | sort
+echo "--- PYTHON SOURCE / STUB FILES ---"
+find deployment/awa_package_py311 -type f \
+  \( -name "*.py" -o -name "*.pyi" \) | sort
 
 echo
 echo "--- COMPILED EXTENSIONS ---"
-find deployment/awa_package_py311 \
-  -type f \
-  -name "*.so" \
-  -printf '%p\n' \
-  | sort
+find deployment/awa_package_py311 -type f -name "*.so" | sort
