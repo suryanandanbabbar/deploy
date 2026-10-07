@@ -1,101 +1,41 @@
 %sh
 set -e
 
-VENV="/tmp/nuitka311"
-ROOT="$PWD"
-OUT="$ROOT/deployment/protected_v2"
-
-echo "===== FINAL PROTECTED DEPLOYMENT ASSEMBLY ====="
-
-rm -rf "$OUT"
+echo "===== COMPARING AWA COMPILED ARTIFACTS ====="
 
 echo
-echo "--- CREATE DIRECTORIES ---"
+echo "--- FIRST COMPILE ---"
 
-mkdir -p "$OUT/backend/awa/expressions"
-
-echo
-echo "--- COPY BACKEND PACKAGE MARKER ---"
-
-touch "$OUT/backend/__init__.py"
-
-echo
-echo "--- COPY COMPILED AWA ---"
-
-cp \
-  "$ROOT/deployment/backend_awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so" \
-  "$OUT/backend/"
-
-cp \
-  "$ROOT/deployment/backend_awa_package_py311/awa.pyi" \
-  "$OUT/backend/"
+stat -c "Path: %n
+Bytes: %s
+Size: %s bytes
+" \
+  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so
 
 echo
-echo "--- COPY COMPILED BACKEND.APP ---"
+echo "--- SECOND COMPILE (backend.awa) ---"
 
-cp \
-  "$ROOT/deployment/app_package_py311/app.cpython-311-x86_64-linux-gnu.so" \
-  "$OUT/backend/"
-
-cp \
-  "$ROOT/deployment/app_package_py311/app.pyi" \
-  "$OUT/backend/"
+stat -c "Path: %n
+Bytes: %s
+Size: %s bytes
+" \
+  deployment/backend_awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so
 
 echo
-echo "--- COPY REQUIRED AWA RUNTIME DATA ---"
+echo "--- SHA256 ---"
 
-cp \
-  "$ROOT/deployment/grammar.lark" \
-  "$OUT/backend/awa/expressions/grammar.lark"
-
-echo
-echo "--- COPY FRONTEND BUILD ---"
-
-if [ ! -d "$ROOT/frontend/dist" ]; then
-    echo "ERROR: frontend/dist does not exist"
-    exit 1
-fi
-
-cp -R \
-  "$ROOT/frontend/dist" \
-  "$OUT/frontend"
+sha256sum \
+  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
+  deployment/backend_awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so
 
 echo
-echo "--- COPY APPLICATION DEPLOYMENT FILES ---"
+echo "--- NUITKA OUTPUT DIRECTORIES ---"
 
-cp "$ROOT/app.yaml" "$OUT/app.yaml"
-cp "$ROOT/start.sh" "$OUT/start.sh"
-cp "$ROOT/requirements.txt" "$OUT/requirements.txt"
+du -ah deployment/awa_package_py311 | sort -h
 
 echo
-echo "--- FINAL ASSEMBLY TREE ---"
 
-find "$OUT" -type f | sort
-
-echo
-echo "===== ASSEMBLY COMPLETE ====="
+du -ah deployment/backend_awa_package_py311 | sort -h
 
 echo
-echo "--- ARTIFACT SIZES ---"
-
-du -h \
-  "$OUT/backend/awa.cpython-311-x86_64-linux-gnu.so" \
-  "$OUT/backend/app.cpython-311-x86_64-linux-gnu.so" \
-  "$OUT/backend/awa/expressions/grammar.lark"
-
-echo
-echo "--- SOURCE FILE CHECK ---"
-
-SOURCE_COUNT=$(find "$OUT" -type f -name "*.py" \
-    ! -path "$OUT/backend/__init__.py" | wc -l)
-
-echo "Proprietary .py files: $SOURCE_COUNT"
-
-if [ "$SOURCE_COUNT" -ne 0 ]; then
-    echo "ERROR: Proprietary Python source files found"
-    find "$OUT" -type f -name "*.py" \
-        ! -path "$OUT/backend/__init__.py"
-    exit 1
-fi
-
-echo "SOURCE CHECK: PASS"
+echo "===== COMPARISON COMPLETE ====="
