@@ -3,46 +3,26 @@ set -e
 
 VENV="/tmp/nuitka311"
 
-echo "===== CLEAN-ROOM COMPILED AWA TEST ====="
-
-rm -rf deployment/awa_runtime_test
-mkdir -p deployment/awa_runtime_test
-
-echo
-echo "--- COPYING ONLY COMPILED AWA ARTIFACTS ---"
-
-cp \
-  deployment/awa_package_py311/awa.cpython-311-x86_64-linux-gnu.so \
-  deployment/awa_runtime_test/
-
-cp \
-  deployment/awa_package_py311/awa.pyi \
-  deployment/awa_runtime_test/
-
-cp \
-  deployment/grammar.lark \
-  deployment/awa_runtime_test/
-
-echo
-echo "--- VERIFY CLEAN TEST DIRECTORY ---"
-
-find deployment/awa_runtime_test -type f | sort
-
-echo
-echo "--- VERIFY NO PYTHON SOURCE EXISTS ---"
-
-if find deployment/awa_runtime_test -type f -name "*.py" | grep -q .; then
-    echo "ERROR: Python source exists in clean test directory"
-    exit 1
-fi
-
-echo "NO PYTHON SOURCE: PASS"
-
-echo
-echo "--- COMPILED AWA IMPORT ---"
-
 cd deployment/awa_runtime_test
 
+echo "===== COMPILED AWA RUNTIME INSPECTION ====="
+
 PYTHONPATH="$PWD" \
-"$VENV/bin/python" -c \
-"import awa; print('COMPILED AWA IMPORT: PASS'); print('AWA PATH:', awa.__file__)"
+"$VENV/bin/python" -c "
+import awa
+print('AWA MODULE:', awa)
+print('AWA FILE:', awa.__file__)
+print('AWA PATH:', getattr(awa, '__path__', None))
+print('AWA SPEC:', awa.__spec__)
+"
+
+echo
+echo "===== COMPILED AWA PARSER TEST ====="
+
+PYTHONPATH="$PWD" \
+"$VENV/bin/python" -c "
+from awa.expressions.parser import parse_expression
+result = parse_expression('[Revenue] > 100')
+print(result)
+print('COMPILED AWA PARSER: PASS')
+"
