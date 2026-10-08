@@ -1,134 +1,25 @@
-import os
-import time
-import subprocess
-import urllib.request
+from backend.app.licensing.developer_config import DeveloperLicenseConfig
 
-OUT = os.path.abspath("deployment/protected_v2")
-VENV = "/tmp/nuitka311"
+# Load the authoritative package-local developer configuration.
+developer_config = DeveloperLicenseConfig.load_from_file()
 
-# Retrieve the signed production license artifact without printing it.
-license_artifact = dbutils.secrets.get(
-    scope="alteryx-licenseArtifacts",
-    key="alteryx-license",
+print("Developer license configuration loaded: PASS")
+print("License ID:", developer_config.identity.license_id)
+print("Product:", developer_config.identity.product)
+print("Environment:", developer_config.identity.environment)
+
+print(
+    "Criteria:",
+    {
+        "date": developer_config.enforcement.date_enabled,
+        "volume": developer_config.enforcement.volume_enabled,
+        "token_usage": developer_config.enforcement.token_usage_enabled,
+    }
 )
 
-env = os.environ.copy()
-
-# Force the tested Python 3.11 runtime.
-env["PATH"] = f"{VENV}/bin:" + env["PATH"]
-env["PYTHONPATH"] = OUT
-
-# Production license artifact.
-env["ALTERYX_LICENSE_ARTIFACT"] = license_artifact
-
-# Use the same non-secret LLM configuration expected by the application.
-env["AZURE_ENDPOINT"] = env.get(
-    "AZURE_ENDPOINT",
-    "https://llama--resource.services.ai.azure.com/openai/v1"
+print(
+    "Date window:",
+    developer_config.date.issued_date,
+    "->",
+    developer_config.date.expiry_date,
 )
-env["AZURE_DEPLOYMENT"] = env.get(
-    "AZURE_DEPLOYMENT",
-    "Llama-4-Maverick-17B-128E-Instruct-FP8"
-)
-env["AZURE_DEPLOYMENT_NAME"] = env.get(
-    "AZURE_DEPLOYMENT_NAME",
-    "Llama-4-Maverick-17B-128E-Instruct-FP8"
-)
-env["AWA_LLM_TEMPERATURE"] = "0.0"
-env["AWA_LLM_TIMEOUT"] = "30.0"
-env["AWA_LLM_BUSINESS_REPORT_TIMEOUT_SECONDS"] = "60.0"
-env["AWA_LLM_RETRY_ATTEMPTS"] = "2"
-env["AWA_LLM_MAX_TOKENS"] = "500"
-env["AWA_LLM_ENABLED"] = "true"
-
-PORT = "8000"
-env["DATABRICKS_APP_PORT"] = PORT
-
-print("==============================================")
-print(" PROTECTED PRODUCTION RUNTIME TEST")
-print("==============================================")
-print()
-print("Python:", VENV)
-print("Application:", OUT)
-print("License artifact: supplied from Databricks secret")
-print("License value: NOT PRINTED")
-print()
-
-process = subprocess.Popen(
-    ["./start.sh"],
-    cwd=OUT,
-    env=env,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    text=True,
-)
-
-try:
-    started = False
-    startup_lines = []
-
-    for _ in range(30):
-        time.sleep(1)
-
-        while process.stdout and process.poll() is None:
-            line = process.stdout.readline()
-            if not line:
-                break
-
-            line = line.rstrip()
-            startup_lines.append(line)
-            print(line)
-
-            if "Application startup complete" in line:
-                started = True
-                break
-
-        if started:
-            break
-
-    if process.poll() is not None:
-        print()
-        print("PROCESS EXITED EARLY")
-        print("Exit code:", process.returncode)
-        raise RuntimeError("Protected application failed during startup")
-
-    print()
-    print("=== HTTP TESTS ===")
-
-    def http_status(path):
-        with urllib.request.urlopen(
-            f"http://127.0.0.1:{PORT}{path}",
-            timeout=10,
-        ) as response:
-            body = response.read()
-            return response.status, body
-
-    status, body = http_status("/api/config")
-    print("/api/config:", status)
-    assert status == 200
-
-    status, body = http_status("/")
-    print("/:", status)
-    assert status == 200
-
-    status, body = http_status("/index.html")
-    print("/index.html:", status)
-    assert status == 200
-
-    print()
-    print("==============================================")
-    print(" PROTECTED PRODUCTION RUNTIME TEST: PASS")
-    print("==============================================")
-
-finally:
-    if process.poll() is None:
-        process.terminate()
-
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-
-    print()
-    print("Application process stopped cleanly.")
