@@ -1,25 +1,226 @@
-from backend.app.licensing.developer_config import DeveloperLicenseConfig
+license_payload = developer_config.generate_unsigned_artifact_payload()
 
-# Load the authoritative package-local developer configuration.
-developer_config = DeveloperLicenseConfig.load_from_file()
+print("Unsigned license payload prepared: PASS")
+print("License ID:", license_payload["license_id"])
+print("Product:", license_payload["product"])
+print("Environment:", license_payload["environment"])
+print("Issued at:", license_payload["issued_at"])
+print("Expires at:", license_payload["expires_at"])
 
-print("Developer license configuration loaded: PASS")
-print("License ID:", developer_config.identity.license_id)
-print("Product:", developer_config.identity.product)
-print("Environment:", developer_config.identity.environment)
+print("Features:", license_payload["features"])
+print("Policy:", license_payload["policy"])
 
-print(
-    "Criteria:",
-    {
-        "date": developer_config.enforcement.date_enabled,
-        "volume": developer_config.enforcement.volume_enabled,
-        "token_usage": developer_config.enforcement.token_usage_enabled,
-    }
+------
+
+from backend.app.licensing.models import LicensePolicy
+
+validated_policy = LicensePolicy.model_validate(
+    license_payload["policy"]
 )
 
-print(
-    "Date window:",
-    developer_config.date.issued_date,
-    "->",
-    developer_config.date.expiry_date,
+print("License policy schema validation: PASS")
+print("Date enabled:", validated_policy.date.enabled)
+print("Volume enabled:", validated_policy.volume.enabled)
+print("Volume limit:", validated_policy.volume.limit)
+print("Token usage enabled:", validated_policy.token_usage.enabled)
+print("Token usage limit:", validated_policy.token_usage.limit)
+
+-----
+
+
+import base64
+
+from cryptography.hazmat.primitives.serialization import load_der_private_key
+
+private_key_b64 = dbutils.secrets.get(
+    scope="alteryx-licenseSigning",
+    key="alteryx-license-private-key",
 )
+
+private_key_der = base64.b64decode(private_key_b64)
+
+private_key = load_der_private_key(
+    private_key_der,
+    password=None,
+)
+
+print("Private signing key retrieved: PASS")
+print("Key type:", type(private_key).__name__)
+
+-----
+
+import base64
+
+from cryptography.hazmat.primitives import serialization
+
+EMBEDDED_PUBLIC_KEY_B64 = (
+    "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
+)
+
+derived_public_key_b64 = base64.b64encode(
+    private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+).decode("ascii")
+
+if derived_public_key_b64 != EMBEDDED_PUBLIC_KEY_B64:
+    raise RuntimeError(
+        "STOP: Retrieved private signing key does not match "
+        "the embedded production public key."
+    )
+
+print("Signing key ↔ embedded public key match: PASS")
+
+-----
+
+from backend.app.licensing.verifier import canonical_payload
+
+canonical_bytes = canonical_payload(license_payload)
+
+signature = private_key.sign(canonical_bytes)
+
+signature_b64 = base64.b64encode(signature).decode("ascii")
+
+signed_license = {
+    **license_payload,
+    "signature": signature_b64,
+}
+
+print("License signed: PASS")
+print("Canonical payload bytes:", len(canonical_bytes))
+print("Signature length:", len(signature))
+print("Signature Base64 length:", len(signature_b64))
+
+-----
+
+from backend.app.licensing.models import LicenseArtifact
+
+validated_artifact = LicenseArtifact.model_validate(
+    signed_license
+)
+
+print("Complete LicenseArtifact schema validation: PASS")
+print("Policy present: PASS")
+print("Features present:", len(validated_artifact.features))
+print("License ID:", validated_artifact.license_id)
+print("Environment:", validated_artifact.environment)
+
+-----
+
+
+from backend.app.licensing.verifier import verify_signature
+
+verify_signature(
+    payload_dict=signed_license,
+    signature_b64=signed_license["signature"],
+    public_key_b64=EMBEDDED_PUBLIC_KEY_B64,
+)
+
+print("Ed25519 signature verification: PASS")
+print("Payload integrity: PASS")
+
+assert signed_license["license_id"] == "CLIENT-ALTERYX-001"
+assert signed_license["product"] == "alteryx-etl"
+assert signed_license["environment"] == "production"
+
+assert signed_license["policy"]["date"]["enabled"] is True
+assert signed_license["policy"]["volume"]["enabled"] is False
+assert signed_license["policy"]["token_usage"]["enabled"] is False
+
+assert signed_license["policy"]["volume"]["limit"] == 9999
+assert signed_license["policy"]["token_usage"]["limit"] == 500000
+
+assert signed_license["issued_at"] == "2026-10-06T00:00:00Z"
+assert signed_license["expires_at"] == "2026-11-06T00:00:00Z"
+
+print("Production license artifact sanity checks: PASS")
+
+------
+
+import json
+
+license_json = json.dumps(
+    signed_license,
+    sort_keys=True,
+    separators=(",", ":"),
+)
+
+artifact_path = "/tmp/alteryx-license-production.json"
+
+with open(artifact_path, "w", encoding="utf-8") as f:
+    f.write(license_json)
+
+print("Production license artifact created: PASS")
+print("Artifact path:", artifact_path)
+print("Artifact size:", len(license_json), "bytes")
+print("Policy included: PASS")
+
+------
+
+with open(artifact_path, "r", encoding="utf-8") as f:
+    artifact_from_disk = json.load(f)
+
+# Schema validation
+LicenseArtifact.model_validate(artifact_from_disk)
+
+# Signature validation
+verify_signature(
+    payload_dict=artifact_from_disk,
+    signature_b64=artifact_from_disk["signature"],
+    public_key_b64=EMBEDDED_PUBLIC_KEY_B64,
+)
+
+print("Disk artifact Pydantic validation: PASS")
+print("Disk artifact Ed25519 verification: PASS")
+print("Production artifact ready for Key Vault: PASS")
+
+-----
+
+print("========== LICENSE ARTIFACT SUMMARY ==========")
+print("License ID:", artifact_from_disk["license_id"])
+print("Product:", artifact_from_disk["product"])
+print("Environment:", artifact_from_disk["environment"])
+print("Issued:", artifact_from_disk["issued_at"])
+print("Expires:", artifact_from_disk["expires_at"])
+
+print("Policy:")
+print(
+    "  Date:",
+    artifact_from_disk["policy"]["date"]["enabled"],
+)
+print(
+    "  Volume:",
+    artifact_from_disk["policy"]["volume"]["enabled"],
+    "limit:",
+    artifact_from_disk["policy"]["volume"]["limit"],
+)
+print(
+    "  Token Usage:",
+    artifact_from_disk["policy"]["token_usage"]["enabled"],
+    "limit:",
+    artifact_from_disk["policy"]["token_usage"]["limit"],
+)
+
+print("Features:", list(artifact_from_disk["features"].keys()))
+print("Signature present:", bool(artifact_from_disk["signature"]))
+print("==============================================")
+
+-----
+
+print(license_json)
+
+-----
+
+read -s -p "Paste signed production license JSON: " VALID_LICENSE
+echo
+
+az keyvault secret set \
+  --vault-name alteryx-licenseArtifacts \
+  --name alteryx-license \
+  --value "$VALID_LICENSE" \
+  --query name \
+  -o tsv
+
+unset VALID_LICENSE
+
