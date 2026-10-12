@@ -1,44 +1,4 @@
-# Alteryx ETL Rationalisation
-
-# Production Licensing, Kill-Switch, Usage Limits, Azure Key Vault and Databricks Integration Guide
-
-**Document type:** Technical architecture and operational runbook\
-**Audience:** Engineering, platform operations, security, solution
-owners, and management\
-**Application:** Alteryx ETL Rationalisation / AWA application\
-**Runtime platform:** Azure Databricks Apps\
-**License mechanism:** Signed JSON license artifact, Ed25519 signature
-verification, startup-only enforcement\
-**Status:** Reflects the implemented architecture and reported
-deployment/test results available at the time this guide was prepared.
-
-------------------------------------------------------------------------
-
-## Document control and interpretation
-
-This guide consolidates the previous date-based license enforcement
-design and the subsequent addition of **Volume** and **Token Usage**
-criteria. It also documents the separation of signing and distribution
-secrets, how Azure Key Vault connects to Databricks, runtime behavior,
-testing, operational procedures, and how the licensing package can be
-adapted for another application.
-
-The terms **implemented**, **reported**, and **recommended** are used
-deliberately:
-
--   **Implemented** describes architecture or behavior established in
-    the project context.
--   **Reported** describes a test or deployment result reported during
-    implementation. Preserve the actual test output or deployment logs
-    as the formal evidence record.
--   **Recommended** describes operational hardening or a reusable
-    integration pattern; it should not be mistaken for a claim that a
-    separate control has already been implemented.
-
-This document does not contain any private key or LLM credential. Never
-add secret values to this document.
-
-------------------------------------------------------------------------
+# Kill Switch: Licensing Guide
 
 # 1. Executive summary
 
@@ -197,60 +157,7 @@ authorization to start.
 
 ------------------------------------------------------------------------
 
-# 3. Terminology
-
-  -----------------------------------------------------------------------
-  Term                                Meaning
-  ----------------------------------- -----------------------------------
-  License artifact                    JSON document containing license
-                                      identity, validity information,
-                                      feature metadata, policy, and
-                                      signature.
-
-  License payload                     The artifact fields covered by the
-                                      signature, excluding the signature
-                                      field itself.
-
-  License policy                      Signed enforcement configuration:
-                                      enabled criteria and relevant
-                                      limits.
-
-  Signer / issuer                     Authorized process that reads the
-                                      private key and signs a payload.
-
-  Runtime verifier                    Production application code that
-                                      validates the artifact with the
-                                      public key.
-
-  Secret provider                     Adapter that retrieves the signed
-                                      artifact from the runtime's
-                                      configured secret delivery
-                                      mechanism.
-
-  Usage data source                   Read-only abstraction used to
-                                      obtain current Volume and Token
-                                      Usage counters.
-
-  Startup kill switch                 Refusal to complete application
-                                      startup when license validation
-                                      fails.
-
-  Fail closed                         An error or ambiguous state denies
-                                      startup rather than permitting it.
-
-  Databricks App resource key         Name used in `app.yaml` to
-                                      reference an App resource,
-                                      e.g. `license-artifact`.
-
-  Environment variable                Runtime variable populated by
-                                      Databricks from the configured App
-                                      resource,
-                                      e.g. `ALTERYX_LICENSE_ARTIFACT`.
-  -----------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-# 4. High-level architecture and trust boundaries
+# 3. High-level architecture and trust boundaries
 
 There are two distinct flows: **license issuance** and **license
 consumption**.
@@ -319,7 +226,7 @@ Startup permitted only if every enabled criterion passes
 
 ------------------------------------------------------------------------
 
-# 5. Azure Key Vaults: purpose and communication paths
+# 4. Azure Key Vaults: purpose and communication paths
 
 Two vaults are used deliberately. They are not interchangeable.
 
@@ -434,7 +341,7 @@ immediate same-session rollback only.
 
 ------------------------------------------------------------------------
 
-# 6. Databricks integration: secret scope, App resource, and `app.yaml`
+# 5. Databricks integration: secret scope, App resource, and `app.yaml`
 
 Azure Key Vault stores the artifact, but the production app needs a
 supported mechanism to receive it at runtime.
@@ -554,7 +461,7 @@ Never grant the production App access to `alteryx-licenseSigning`.
 
 ------------------------------------------------------------------------
 
-# 7. Cryptographic design: Ed25519 and canonical JSON
+# 6. Cryptographic design: Ed25519 and canonical JSON
 
 ## 7.1 Why asymmetric signatures?
 
@@ -620,7 +527,7 @@ verification must succeed.
 
 ------------------------------------------------------------------------
 
-# 8. License artifact and signed policy
+# 7. License artifact and signed policy
 
 The artifact carries identity, validity data, feature metadata, a signed
 enforcement policy, and a signature.
@@ -730,7 +637,7 @@ Usage policy checks.
 
 ------------------------------------------------------------------------
 
-# 9. The three enforcement criteria
+# 8. The three enforcement criteria
 
 The three criteria are independent switches in the signed policy. The
 runtime evaluates each enabled criterion. **All enabled criteria must
@@ -905,7 +812,7 @@ off all checks or override the signed policy.
 
 ------------------------------------------------------------------------
 
-# 10. Usage data source: portable interface and operational contract
+# 9. Usage data source: portable interface and operational contract
 
 ## 10.1 Why an interface is needed
 
@@ -999,7 +906,7 @@ materially affect latency, availability, and concurrency semantics.
 
 ------------------------------------------------------------------------
 
-# 11. Developer configuration versus signed runtime policy
+# 10. Developer configuration versus signed runtime policy
 
 The project has a package-local developer configuration, including
 identity, secret coordinates, criterion toggles, dates, limits, and
@@ -1074,7 +981,7 @@ use the supported App resource mechanism.
 
 ------------------------------------------------------------------------
 
-# 12. Code organization and portability
+# 11. Code organization and portability
 
 The licensing package is organized as a self-contained module under:
 
@@ -1186,7 +1093,7 @@ gate is authoritative for the deployed service.
 
 ------------------------------------------------------------------------
 
-# 13. Runtime startup sequence
+# 12. Runtime startup sequence
 
 The implemented application startup calls the licensing manager before
 normal service initialization. The relevant operation is:
@@ -1232,7 +1139,7 @@ disable a signed criterion using local configuration.
 
 ------------------------------------------------------------------------
 
-# 14. Issuing a signed license in a controlled Databricks notebook
+# 13. Issuing a signed license in a controlled Databricks notebook
 
 This section records the process used in the project. It is intended for
 authorized license issuance only. Never run the signing flow from the
@@ -1425,7 +1332,7 @@ schema and policy validation must also pass.
 
 ------------------------------------------------------------------------
 
-# 15. Publishing and updating a license
+# 14. Publishing and updating a license
 
 The distribution path is the signed artifact vault, not the signing
 vault.
@@ -1458,7 +1365,7 @@ process for a durable recovery point.
 ## 15.2 Publish the signed JSON
 
 Use the secure `read -s` and `az keyvault secret set` command in Section
-5.4. Confirm that the command reports the expected secret name. Avoid
+3.4. Confirm that the command reports the expected secret name. Avoid
 pasting the artifact into source code, `app.yaml`, or
 `developer_config.json`.
 
@@ -1484,7 +1391,7 @@ otherwise, the app should remain blocked on startup.
 
 ------------------------------------------------------------------------
 
-# 16. Volume and Token Usage: database setup and test bundle
+# 15. Volume and Token Usage: database setup and test bundle
 
 A test-only SQLite bundle was used to verify the generic usage-source
 contract and boundary behavior. It is not the production metering system
@@ -1557,7 +1464,7 @@ licensing package unless that is a separately approved requirement.
 
 ------------------------------------------------------------------------
 
-# 17. Test strategy and reported validation evidence
+# 16. Test strategy and reported validation evidence
 
 The licensing implementation was tested at several levels. Keep the raw
 test output and deployment logs with the release record; summaries below
@@ -1590,7 +1497,7 @@ overrides; - all criterion combinations and signed-policy authority.
 
 The usage bundle test file was reported to contain **17 tests**.
 Coverage included the boundaries and data-source failure modes described
-in Section 16.
+in Section 3.
 
 ## 17.3 Full backend suite
 
@@ -1633,7 +1540,7 @@ definitive evidence.
 
 ------------------------------------------------------------------------
 
-# 18. Kill-switch test procedure
+# 17. Kill-switch test procedure
 
 Perform this only in an approved test window and with a clear recovery
 path. Do not leave the production artifact expired.
@@ -1673,139 +1580,7 @@ whose expiry is in the past.
 
 ------------------------------------------------------------------------
 
-# 19. Failure matrix and expected outcomes
-
-  ------------------------------------------------------------------------
-  Failure or condition     When relevant           Expected outcome
-  ------------------------ ----------------------- -----------------------
-  Artifact environment     Every startup           Fail closed
-  variable missing/empty                           
-
-  Malformed JSON           Every startup           Fail closed
-
-  `policy` missing         Every startup           Schema validation fails
-
-  Invalid signature        Every startup           Fail closed
-
-  Signed field changed     Every startup           Signature verification
-  after signing                                    fails
-
-  Wrong license            Every startup           Identity validation
-  ID/product/environment                           fails
-
-  Date enabled and current Date enabled            Startup blocked
-  time is at/after expiry                          
-
-  Volume enabled and       Volume enabled          Criterion passes
-  current volume is below                          
-  limit                                            
-
-  Volume enabled and       Volume enabled          Startup blocked
-  current volume is                                
-  at/above limit                                   
-
-  Token Usage enabled and  Token Usage enabled     Criterion passes
-  current token count is                           
-  below limit                                      
-
-  Token Usage enabled and  Token Usage enabled     Startup blocked
-  current token count is                           
-  at/above limit                                   
-
-  Enabled usage source is  Corresponding criterion Fail closed
-  unavailable              enabled                 
-
-  Enabled usage value      Corresponding criterion Fail closed
-  missing, malformed, or   enabled                 
-  negative                                         
-
-  All three policy flags   Policy authoring/schema Reject policy
-  disabled                 validation              
-
-  Local flag says disabled Runtime                 Signed policy wins
-  but signed policy says                           
-  enabled                                          
-
-  Local limit is higher    Runtime                 Signed limit wins
-  than signed limit                                
-
-  Production App tries to  App runtime             Not a supported
-  use `dbutils` for App                            retrieval path; use
-  secret                                           injected environment
-                                                   variable
-
-  Production App has       Security                Remove access;
-  access to signing scope  misconfiguration        production App must not
-                                                   receive private key
-  ------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-# 20. Security model, threat coverage, and limitations
-
-## 20.1 Controls provided
-
-The design provides: - signed-artifact authenticity; - tamper detection
-for signed payload and policy; - identity binding to the intended
-license/product/environment; - date enforcement; - configurable Volume
-and Token Usage thresholds; - fail-closed startup behavior; - separation
-between license issuance and license verification; - separation of
-generic core logic from platform-specific adapters.
-
-## 20.2 Threats addressed
-
-  -----------------------------------------------------------------------
-  Threat                              Expected control
-  ----------------------------------- -----------------------------------
-  Extend expiry by editing JSON       Signature verification fails
-
-  Increase volume limit by editing    Signature verification fails
-  JSON                                
-
-  Increase token limit by editing     Signature verification fails
-  JSON                                
-
-  Disable a criterion by editing JSON Signature verification fails
-
-  Change license                      Signature and/or identity
-  ID/product/environment              validation fails
-
-  Remove signature                    Schema/verification fails
-
-  Corrupt JSON                        Parsing/schema validation fails
-
-  Remove artifact secret              Retrieval fails closed
-
-  Exceed enabled usage limit          Startup blocked
-
-  Make usage source unavailable       Startup blocked for an enabled
-                                      usage criterion
-
-  Generate a new license without      Cannot produce a valid signature
-  signing key                         under the embedded public key
-  -----------------------------------------------------------------------
-
-## 20.3 What the design does not claim
-
-No software-only licensing system can guarantee that a sufficiently
-privileged attacker who can alter the runtime, replace the public key,
-patch the verifier, or modify the deployed application can never bypass
-it. The design protects the issuance authority and provides verifiable
-authenticity/integrity for the signed policy; it is not a mathematical
-guarantee against total runtime compromise.
-
-The usage criteria also depend on the integrity of the usage source. A
-signed limit is only as meaningful as the current counter being read.
-Access control, write authority, auditing, and consistency of the host's
-usage database remain important.
-
-The startup-only model does not enforce limits immediately in a running
-process. If immediate enforcement or per-operation quota reservation is
-required, that is a different system design.
-
-------------------------------------------------------------------------
-
-# 21. Porting the licensing package to another application
+# 18. Porting the licensing package to another application
 
 The package is designed to be embedded in another Python application
 without making Databricks a core dependency.
@@ -1862,107 +1637,7 @@ Databricks, a container platform, a VM, or another Python host.
 
 ------------------------------------------------------------------------
 
-# 22. Databricks deployment and protected packaging considerations
-
-The licensing implementation was validated first in source form on
-Databricks. That sequence is important: confirm secret injection, schema
-validity, usage-source behavior, startup gating, and application health
-before compiling or sealing the package.
-
-The project also investigated Nuitka package-mode protection for the AWA
-and backend application modules. The protected deployment target was
-designed to avoid distributing proprietary `.py` implementation files
-while retaining required runtime resources.
-
-## 22.1 Production artifact exclusions
-
-Do not include: - Ed25519 private signing key; - LLM API keys or other
-live credentials; - `.env` files; - test databases and usage-test
-bundles; - test-only adapters; - unnecessary tests and development
-artifacts; - proprietary `.py` implementation files when the protected
-build requirement is to compile them; - `.pyc` and `__pycache__`
-artifacts.
-
-Keep required non-code runtime resources, such as the parser grammar
-file, where the compiled package expects them. Do not remove resources
-merely because they are not Python source.
-
-## 22.2 Nuitka package-mode commands used during development
-
-The following are historical commands used to compile Python packages in
-the Linux/Python 3.11 build environment. Run them only in the matching
-build environment and verify the current source paths first.
-
-Compile AWA package (historical top-level package command):
-
-``` bash
-PYTHONPATH=backend \
-/tmp/nuitka311/bin/python -m nuitka \
-  --mode=package \
-  --include-package=awa \
-  backend/awa \
-  --output-dir=deployment/awa_package_py311 \
-  --remove-output
-```
-
-The project later confirmed that the canonical source namespace was
-`backend.awa`, not top-level `awa`, and compiled it with:
-
-``` bash
-PYTHONPATH=. \
-/tmp/nuitka311/bin/python -m nuitka \
-  --mode=package \
-  --include-package=backend.awa \
-  backend/awa \
-  --output-dir=deployment/backend_awa_package_py311 \
-  --remove-output
-```
-
-Compile the backend application package:
-
-``` bash
-PYTHONPATH=. \
-/tmp/nuitka311/bin/python -m nuitka \
-  --mode=package \
-  --include-package=backend.app \
-  backend/app \
-  --output-dir=deployment/app_package_py311 \
-  --remove-output
-```
-
-These commands are not required to use the licensing package in source
-form. They are included as part of the wider packaging history and
-should be revalidated against the current code, Python ABI, OS
-architecture, and Databricks App constraints before reuse.
-
-## 22.3 Licensing must behave identically after compilation
-
-Compilation must not change: - the signed policy schema; -
-canonicalization; - public key used by the verifier; - the secret
-provider's runtime behavior; - usage source semantics; - startup-only
-enforcement; - fail-closed behavior.
-
-The protected artifact must not include the private key. The production
-App must still receive the signed artifact through the configured
-Databricks App secret resource.
-
-## 22.4 Source-first deployment validation
-
-Before creating a new protected build, verify in source deployment: -
-app startup with a valid signed artifact; - startup rejection for an
-expired but correctly signed artifact; - rejection of a malformed or
-tampered artifact; - rejection when an enabled usage criterion reaches
-its limit; - rejection when an enabled usage source is unavailable; -
-success when each enabled criterion is below its limit; - `/api/health`
-and core application routes; - frontend root and static asset serving if
-the app includes the React frontend.
-
-Only after these checks pass should the same behavior be verified in the
-compiled deployment.
-
-------------------------------------------------------------------------
-
-# 23. Operational runbooks
+# 19. Operational runbooks
 
 ## 23.1 Issue or renew a license
 
@@ -2030,7 +1705,7 @@ policy.
 
 ------------------------------------------------------------------------
 
-# 24. Configuration and release checklist
+# 20. Configuration and release checklist
 
 ## Azure and Databricks resources
 
@@ -2088,7 +1763,7 @@ policy.
 
 ------------------------------------------------------------------------
 
-# 25. Key commands reference
+# 21. Key commands reference
 
 ## Validate Python syntax
 
@@ -2146,7 +1821,7 @@ and validated.
 
 ------------------------------------------------------------------------
 
-# 26. Implementation history and important corrections
+# 22. Implementation history and important corrections
 
 The following corrections are particularly important because they were
 encountered during real deployment.
@@ -2196,7 +1871,7 @@ licensing policy and secret integration.
 
 ------------------------------------------------------------------------
 
-# 27. Final architecture summary
+# 23. Final architecture summary
 
 ``` text
                    AUTHORIZED LICENSE ISSUER
