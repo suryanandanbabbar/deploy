@@ -1,226 +1,213 @@
-license_payload = developer_config.generate_unsigned_artifact_payload()
+Claude Task: Redesign the Licensing Module Only — Local Date, Volume, and Token Enforcement
 
-print("Unsigned license payload prepared: PASS")
-print("License ID:", license_payload["license_id"])
-print("Product:", license_payload["product"])
-print("Environment:", license_payload["environment"])
-print("Issued at:", license_payload["issued_at"])
-print("Expires at:", license_payload["expires_at"])
+Objective
 
-print("Features:", license_payload["features"])
-print("Policy:", license_payload["policy"])
+Work exclusively on the existing Alteryx application’s licensing module. Redesign its licensing implementation so that the module enforces the configured date, volume usage, and token usage criteria locally, without Azure Key Vault calls, private-key retrieval, Ed25519 signing, signed-license artifact retrieval, or other licensing API calls.
 
-------
+The only external API calls that may remain in the application are the application’s existing LLM calls. Do not modify, wrap, redirect, or otherwise change those LLM integrations.
 
-from backend.app.licensing.models import LicensePolicy
+The existing developer_config.json must remain the developer-facing place to choose which licensing criteria are enabled and to configure their values. Preserve its current schema and keys unless a strictly necessary incompatibility is discovered. Do not silently redesign the configuration format.
 
-validated_policy = LicensePolicy.model_validate(
-    license_payload["policy"]
-)
+Scope lock — do not change anything else
 
-print("License policy schema validation: PASS")
-print("Date enabled:", validated_policy.date.enabled)
-print("Volume enabled:", validated_policy.volume.enabled)
-print("Volume limit:", validated_policy.volume.limit)
-print("Token usage enabled:", validated_policy.token_usage.enabled)
-print("Token usage limit:", validated_policy.token_usage.limit)
+1. First inspect the actual repository and trace the current licensing flow before editing.
+2. Limit code changes to the licensing package and the smallest necessary licensing integration point in main.py or equivalent startup wiring.
+3. Do not modify frontend code, workflow analysis, rationalisation logic, LLM prompts or clients, API routes unrelated to licensing, reports, storage, deployment scripts, app.yaml, start.sh, dependencies, or unrelated tests.
+4. Do not rename or move files, reorganize packages, or refactor unrelated code.
+5. Do not remove or change existing developer_config.json keys or criterion-selection behavior.
+6. Do not add a new cloud service, external licensing server, telemetry service, or licensing API.
+7. Before editing, list the exact files you intend to change and explain why each one is necessary. Keep the change set minimal.
+8. After implementation, report every changed file and explain the precise licensing-only change made in it.
 
------
+Required architecture
 
+A. Remove the old signing and secret-retrieval path
 
-import base64
+Remove the licensing runtime’s dependency on all of the following:
 
-from cryptography.hazmat.primitives.serialization import load_der_private_key
+• Azure Key Vault private-key retrieval.
+• The alteryx-licensing Key Vault secret containing the private key.
+• Ed25519 signing or verification as a runtime licensing requirement.
+• Retrieval of a signed license artifact from alteryx-licenseArtifacts.
+• Databricks secret scopes/resources used only to retrieve that artifact.
+• Licensing-related dbutils access.
+• Any licensing HTTP/API call or network-based license validation.
 
-private_key_b64 = dbutils.secrets.get(
-    scope="alteryx-licenseSigning",
-    key="alteryx-license-private-key",
-)
+Do not merely leave the old path active as a fallback. The production licensing flow must not try to access these services. Remove obsolete code only when it belongs to the licensing module and is demonstrably unused after the redesign. Do not delete or alter Azure resources; code changes cannot remove infrastructure resources. Document which old Azure resources/configurations become unused so an administrator can retire them separately if desired.
 
-private_key_der = base64.b64decode(private_key_b64)
+Do not change or disable the application’s LLM API calls.
 
-private_key = load_der_private_key(
-    private_key_der,
-    password=None,
-)
+B. Keep developer_config.json as the criterion control
 
-print("Private signing key retrieved: PASS")
-print("Key type:", type(private_key).__name__)
+Inspect and preserve the existing configuration structure. It currently represents these concepts:
 
------
+• License identity: license_id, product, environment.
+• Criterion flags: date_enabled, volume_enabled, token_usage_enabled, represented as 1 or 0.
+• Date values: issued_date, expiry_date.
+• Usage limits: volume_limit, token_usage_limit.
+• Feature flags, if present.
 
-import base64
+Use the exact existing keys and nesting found in the repository. The above is a semantic description, not permission to rename keys or rewrite the file.
 
-from cryptography.hazmat.primitives import serialization
+The developer must be able to enable or disable each criterion independently. Support every combination of the three flags except the unsafe configuration where all three are disabled. Reject that all-disabled configuration clearly during configuration validation. Do not enable a criterion merely because another setting exists.
 
-EMBEDDED_PUBLIC_KEY_B64 = (
-    "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
-)
+The effective enforcement rules and limits must come from the existing developer configuration. Do not retain an old signed-artifact policy as a second authority, and do not merge old and new settings with fallback/OR/AND logic.
 
-derived_public_key_b64 = base64.b64encode(
-    private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-).decode("ascii")
+C. Date criterion
 
-if derived_public_key_b64 != EMBEDDED_PUBLIC_KEY_B64:
-    raise RuntimeError(
-        "STOP: Retrieved private signing key does not match "
-        "the embedded production public key."
-    )
+When the date criterion is enabled:
 
-print("Signing key ↔ embedded public key match: PASS")
+1. Parse the configured issue and expiry timestamps strictly.
+2. Use timezone-aware UTC values internally. Reject malformed or timezone-ambiguous values; do not silently guess a timezone.
+3. Validate that issue date is not later than expiry date.
+4. Reject use before the issue date.
+5. Treat the license as expired when current_utc_time >= expiry_date.
+6. Use an injectable clock or equivalent test seam so boundary behavior can be tested deterministically.
+7. When date enforcement is disabled, date validity must not block startup.
 
------
+Do not add online time services or network-based clock checks. State the limitation that a user able to control the host clock may be able to affect local date enforcement.
 
-from backend.app.licensing.verifier import canonical_payload
+D. Volume criterion — read a developer-configured usage source
 
-canonical_bytes = canonical_payload(license_payload)
+When volume enforcement is enabled:
 
-signature = private_key.sign(canonical_bytes)
+1. Read the current cumulative volume usage from the database source/location explicitly configured by the developer in the existing configuration or existing usage-source wiring.
+2. Compare that current value to the configured volume_limit.
+3. Use the current source value as authoritative. Do not calculate usage from application requests, scan business data, infer volume, or maintain a second counter in the licensing module.
+4. Do not write to the usage database, increment counters, create tables, reset values, or otherwise mutate usage data.
+5. Use a read-only database connection/credential where supported and a read-only query that retrieves only the required aggregate/current usage value.
+6. Treat current_usage >= volume_limit as a limit breach. A value below the limit passes.
+7. Validate types and reject missing rows, missing values, negative values, malformed results, connection failures, and query failures. Fail closed when enforcement is enabled and a valid usage value cannot be obtained.
+8. Do not hardcode a database path, table, schema, SQL query, account identifier, credential, or connection string. Reuse the existing configured source contract and configuration.
+9. Do not introduce an external HTTP API for usage retrieval.
 
-signature_b64 = base64.b64encode(signature).decode("ascii")
+E. Token usage criterion — read a developer-configured usage source
 
-signed_license = {
-    **license_payload,
-    "signature": signature_b64,
-}
+When token usage enforcement is enabled:
 
-print("License signed: PASS")
-print("Canonical payload bytes:", len(canonical_bytes))
-print("Signature length:", len(signature))
-print("Signature Base64 length:", len(signature_b64))
+1. Read the current cumulative token usage from the database source/location explicitly configured by the developer in the existing configuration or existing usage-source wiring.
+2. Compare the current value with token_usage_limit.
+3. Treat the database as the source of truth. The licensing module must not count tokens, estimate tokens, inspect LLM prompts/responses, add LLM SDK callbacks, or record token consumption.
+4. Do not change the application’s LLM clients or LLM API call flow.
+5. Do not write to the usage database or maintain a parallel usage counter.
+6. Use a read-only query/connection and retrieve only the required current aggregate/value.
+7. Treat current_token_usage >= token_usage_limit as a limit breach. A value below the limit passes.
+8. Missing rows/values, invalid or negative values, malformed results, and source/query failures must fail closed when this criterion is enabled.
+9. Reuse the existing usage-source abstraction and developer-provided source configuration. Do not hardcode paths, tables, SQL, credentials, or account IDs.
 
------
+F. Database source contract and the meaning of “no external calls”
 
-from backend.app.licensing.models import LicenseArtifact
+There is an important distinction between an HTTP/API call and reading a database. The requested design prohibits licensing APIs, Key Vault calls, secret lookups, online license validation, and telemetry. The volume and token criteria still must read the developer-designated database source because that is the explicit requirement.
 
-validated_artifact = LicenseArtifact.model_validate(
-    signed_license
-)
-
-print("Complete LicenseArtifact schema validation: PASS")
-print("Policy present: PASS")
-print("Features present:", len(validated_artifact.features))
-print("License ID:", validated_artifact.license_id)
-print("Environment:", validated_artifact.environment)
-
------
-
-
-from backend.app.licensing.verifier import verify_signature
-
-verify_signature(
-    payload_dict=signed_license,
-    signature_b64=signed_license["signature"],
-    public_key_b64=EMBEDDED_PUBLIC_KEY_B64,
-)
-
-print("Ed25519 signature verification: PASS")
-print("Payload integrity: PASS")
-
-assert signed_license["license_id"] == "CLIENT-ALTERYX-001"
-assert signed_license["product"] == "alteryx-etl"
-assert signed_license["environment"] == "production"
-
-assert signed_license["policy"]["date"]["enabled"] is True
-assert signed_license["policy"]["volume"]["enabled"] is False
-assert signed_license["policy"]["token_usage"]["enabled"] is False
-
-assert signed_license["policy"]["volume"]["limit"] == 9999
-assert signed_license["policy"]["token_usage"]["limit"] == 500000
-
-assert signed_license["issued_at"] == "2026-10-06T00:00:00Z"
-assert signed_license["expires_at"] == "2026-11-06T00:00:00Z"
-
-print("Production license artifact sanity checks: PASS")
-
-------
-
-import json
-
-license_json = json.dumps(
-    signed_license,
-    sort_keys=True,
-    separators=(",", ":"),
-)
-
-artifact_path = "/tmp/alteryx-license-production.json"
-
-with open(artifact_path, "w", encoding="utf-8") as f:
-    f.write(license_json)
-
-print("Production license artifact created: PASS")
-print("Artifact path:", artifact_path)
-print("Artifact size:", len(license_json), "bytes")
-print("Policy included: PASS")
-
-------
-
-with open(artifact_path, "r", encoding="utf-8") as f:
-    artifact_from_disk = json.load(f)
-
-# Schema validation
-LicenseArtifact.model_validate(artifact_from_disk)
-
-# Signature validation
-verify_signature(
-    payload_dict=artifact_from_disk,
-    signature_b64=artifact_from_disk["signature"],
-    public_key_b64=EMBEDDED_PUBLIC_KEY_B64,
-)
-
-print("Disk artifact Pydantic validation: PASS")
-print("Disk artifact Ed25519 verification: PASS")
-print("Production artifact ready for Key Vault: PASS")
-
------
-
-print("========== LICENSE ARTIFACT SUMMARY ==========")
-print("License ID:", artifact_from_disk["license_id"])
-print("Product:", artifact_from_disk["product"])
-print("Environment:", artifact_from_disk["environment"])
-print("Issued:", artifact_from_disk["issued_at"])
-print("Expires:", artifact_from_disk["expires_at"])
-
-print("Policy:")
-print(
-    "  Date:",
-    artifact_from_disk["policy"]["date"]["enabled"],
-)
-print(
-    "  Volume:",
-    artifact_from_disk["policy"]["volume"]["enabled"],
-    "limit:",
-    artifact_from_disk["policy"]["volume"]["limit"],
-)
-print(
-    "  Token Usage:",
-    artifact_from_disk["policy"]["token_usage"]["enabled"],
-    "limit:",
-    artifact_from_disk["policy"]["token_usage"]["limit"],
-)
-
-print("Features:", list(artifact_from_disk["features"].keys()))
-print("Signature present:", bool(artifact_from_disk["signature"]))
-print("==============================================")
-
------
-
-print(license_json)
-
------
-
-read -s -p "Paste signed production license JSON: " VALID_LICENSE
-echo
-
-az keyvault secret set \
-  --vault-name alteryx-licenseArtifacts \
-  --name alteryx-license \
-  --value "$VALID_LICENSE" \
-  --query name \
-  -o tsv
-
-unset VALID_LICENSE
-
+• If the configured database is local, read it locally.
+• If it is a database service on another host, a database connection/query is necessarily a network interaction. Do not falsely describe that as “no external communication.” It is a database read, not a licensing API.
+• Do not silently replace a configured remote database with a local SQLite database, a mock, a cached value, or a hardcoded number.
+• Do not assume a database path, schema, table, column, or query. Inspect the repository and its existing source contract first.
+• If the current repository does not define enough information to identify the authoritative volume/token usage values, stop and report exactly what is missing instead of inventing a source or changing the configuration schema without approval.
+
+If the existing usage source can be made read-only without changing the configuration schema, do so. Never log database credentials, connection strings, raw records, LLM content, or sensitive source values.
+
+Enforcement behavior
+
+• Preserve the existing startup enforcement model: evaluate enabled criteria during application startup before serving normal application traffic. Do not add periodic checks or per-request checks unless the current implementation already requires them and changing that behavior is unavoidable; if it is unavoidable, explain why before making the change.
+• Any enabled criterion that fails must block startup using the project’s existing licensing exception/error conventions.
+• If an enabled usage source is unavailable or returns invalid data, fail closed with a clear, non-secret-bearing diagnostic.
+• Disabled criteria must not query their source or block startup.
+• All three disabled must be rejected as invalid configuration.
+• Do not log secrets, connection strings, full configuration objects, or sensitive database contents.
+• Avoid catching broad exceptions and then allowing startup to continue.
+
+Security requirements and honest limitations
+
+Make local enforcement as robust as reasonably possible without introducing external validation:
+
+• Validate configuration strictly and reject invalid types, invalid limits, invalid dates, and malformed source results.
+• Keep usage reads read-only.
+• Separate criterion evaluation from database access using the existing abstractions where practical.
+• Use dependency injection for the usage source and clock so tests can supply deterministic fakes without changing production behavior.
+• Avoid mutable global enforcement state and accidental fallback to permissive defaults.
+• Fail closed when an enabled criterion cannot be evaluated.
+• Ensure the licensing manager uses only the new configuration and usage-source path.
+• Remove dead references to old signing/Key Vault licensing code only within the licensing module.
+• Do not claim that local JSON configuration is cryptographically tamper-proof. Without a trusted external authority, protected hardware, or a signed policy whose verification key is protected from modification, a person who can modify the local application/configuration may be able to change limits, disable checks, patch the code, or manipulate the system clock. Do not add a replacement signature mechanism because the requested architecture explicitly removes Ed25519 and private-key retrieval. Document this limitation accurately in the implementation summary, without expanding scope into a new security architecture.
+
+Testing requirements
+
+Add or update licensing-only tests for at least:
+
+Criterion combinations
+
+• Date only.
+• Volume only.
+• Token usage only.
+• Date + volume.
+• Date + token usage.
+• Volume + token usage.
+• All three enabled.
+• All three disabled -> configuration error.
+
+Date boundaries
+
+• Before issue date -> denied.
+• Exactly at issue date -> allowed if other criteria pass.
+• Immediately before expiry -> allowed if other criteria pass.
+• Exactly at expiry -> denied.
+• After expiry -> denied.
+• Invalid timestamp, naive timestamp, and issue date after expiry -> configuration error.
+• Date disabled -> date does not block startup.
+
+Volume boundaries and failure cases
+
+• Below limit -> allowed.
+• Exactly at limit -> denied.
+• Above limit -> denied.
+• Zero, negative, missing, malformed, or unavailable usage source -> behavior must match strict validation and fail-closed requirements.
+• Volume disabled -> volume source is not queried.
+
+Token boundaries and failure cases
+
+• Below limit -> allowed.
+• Exactly at limit -> denied.
+• Above limit -> denied.
+• Zero, negative, missing, malformed, or unavailable usage source -> behavior must match strict validation and fail-closed requirements.
+• Token usage disabled -> token source is not queried.
+
+Read-only and regression tests
+
+• Verify licensing does not write/update/insert/delete into the usage database.
+• Verify it does not count usage itself.
+• Verify local configured limits are the limits actually enforced.
+• Verify no Key Vault, Ed25519 signing/verification, Databricks secret lookup, dbutils, licensing HTTP client, or remote license-artifact retrieval is called by the production licensing path.
+• Verify LLM integrations are unchanged.
+• Verify application startup succeeds with a valid configuration and valid usage values.
+• Verify startup fails when an enabled criterion fails.
+• Run the focused licensing tests first, then the broader existing test suite if the environment permits. Report exact commands and actual results; do not claim tests passed if they were not run.
+
+Implementation workflow
+
+1. Inspect the current licensing package, developer_config.json, the startup integration, existing usage-source adapter/protocol, tests, and requirements.
+2. Summarize the current flow and identify every file that needs to change.
+3. Check whether volume and token usage already have a configured database source and query contract. Do not invent missing details.
+4. Make the smallest licensing-only patch.
+5. Run focused tests and relevant regression tests.
+6. Search the licensing runtime path for remaining Key Vault, Ed25519, dbutils, signed-artifact, and licensing API references.
+7. Verify that the developer_config.json schema and existing keys are unchanged.
+8. Report the final behavior, changed files, commands run, test results, remaining limitations, and any Azure resources that are now unused but require separate administrative cleanup.
+
+Final acceptance criteria
+
+Do not consider the task complete unless all are true:
+
+• The production licensing flow makes no Azure Key Vault calls and performs no Ed25519 signing/verification.
+• The production licensing flow does not retrieve a signed license artifact or make a licensing API call.
+• Existing developer_config.json structure and criterion-selection keys remain unchanged.
+• Date, volume, and token usage are independently selectable.
+• Volume and token criteria only read the configured authoritative usage source; they do not calculate or write usage.
+• Enabled criteria fail closed on invalid or unavailable inputs.
+• Disabled criteria do not access their sources.
+• Licensing checks run at startup as specified.
+• Existing LLM calls and unrelated application behavior are unchanged.
+• Tests and static searches support the claims in the final report.
+• No unrelated files or features have been changed.
+
+Begin by inspecting the repository. Do not edit files until you have reported the current licensing flow, the proposed minimal file list, and any missing information about the authoritative volume/token database source.
